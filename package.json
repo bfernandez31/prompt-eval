@@ -1,0 +1,18 @@
+{
+  "name": "prompt-eval",
+  "version": "0.0.1",
+  "description": "Self-improvement framework for Claude Code prompts",
+  "type": "module",
+  "scripts": {
+    "test": "bun test",
+    "typecheck": "tsc --noEmit",
+    "prompt-eval": "bun run lib/cli.ts"
+  },
+  "dependencies": {
+    "yaml": "^2.6.0"
+  },
+  "devDependencies": {
+    "@types/bun": "latest",
+    "typescript": "^5.6.0"
+  }
+}
