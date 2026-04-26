@@ -31,16 +31,40 @@ export async function initState(stateDir: string, args: InitArgs): Promise<RunSt
 }
 
 export async function readState(stateDir: string): Promise<RunState> {
-  const text = await readFile(join(stateDir, FILE), "utf8");
-  return parse(text) as RunState;
+  const filePath = join(stateDir, FILE);
+  let text: string;
+  try {
+    text = await readFile(filePath, "utf8");
+  } catch (e) {
+    throw new Error(`state: failed to read ${filePath}: ${(e as Error).message}`);
+  }
+  let parsed: unknown;
+  try {
+    parsed = parse(text);
+  } catch (e) {
+    throw new Error(`state: failed to parse ${filePath} as YAML: ${(e as Error).message}`);
+  }
+  if (typeof (parsed as RunState)?.state?.budget_consumed_usd !== "number") {
+    throw new Error(`state: ${filePath} has invalid or missing state.budget_consumed_usd`);
+  }
+  return parsed as RunState;
 }
 
 export async function writeState(stateDir: string, s: RunState): Promise<void> {
   await writeFile(join(stateDir, FILE), stringify(s));
 }
 
+// addBudget is not concurrency-safe (read-modify-write). Single-controller use only.
 export async function addBudget(stateDir: string, usd: number): Promise<void> {
   const s = await readState(stateDir);
   s.state.budget_consumed_usd += usd;
+  await writeState(stateDir, s);
+}
+
+// bumpRound increments current_round and rounds_completed atomically (single-controller).
+export async function bumpRound(stateDir: string): Promise<void> {
+  const s = await readState(stateDir);
+  s.current_round += 1;
+  s.state.rounds_completed += 1;
   await writeState(stateDir, s);
 }

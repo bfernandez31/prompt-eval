@@ -3,7 +3,7 @@ import { describe, expect, test, beforeEach } from "bun:test";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { initState, readState, addBudget } from "../lib/state";
+import { initState, readState, addBudget, bumpRound } from "../lib/state";
 
 let dir: string;
 beforeEach(async () => {
@@ -36,6 +36,26 @@ describe("state", () => {
     await addBudget(dir, 0.25);
     const s = await readState(dir);
     expect(s.state.budget_consumed_usd).toBeCloseTo(1.75, 6);
+    await rm(dir, { recursive: true });
+  });
+
+  test("bumpRound increments both counters", async () => {
+    await initState(dir, {
+      run_id: "test-3",
+      profile_path: "/tmp/p.yml",
+      mode: "semi-auto",
+      baseline_path: "x",
+    });
+    await bumpRound(dir);
+    await bumpRound(dir);
+    const s = await readState(dir);
+    expect(s.current_round).toBe(2);
+    expect(s.state.rounds_completed).toBe(2);
+    await rm(dir, { recursive: true });
+  });
+
+  test("readState throws actionable error on missing file", async () => {
+    await expect(readState(dir)).rejects.toThrow(/failed to read/);
     await rm(dir, { recursive: true });
   });
 });
