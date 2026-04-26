@@ -1,0 +1,8 @@
+{
+  "name": "prompt-eval",
+  "version": "0.0.1",
+  "description": "Self-improvement framework for Claude Code prompts via 3-level evaluation cascade with Agent Teams.",
+  "author": "bfernandez31",
+  "skills": ["skills/prompt-eval/SKILL.md"],
+  "agents": ["agents/eval-orchestrator.md", "agents/hypothesis-evaluator.md"]
+}
