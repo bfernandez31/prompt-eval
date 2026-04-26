@@ -27,22 +27,47 @@ MVP shipped — see commit history. All unit tests green.
 - **Per-variation runs**: standard Agent tool sub-agents over `git clone --shared` sandboxes
 - **Profiles**: declarative YAML files describing a target prompt + how to evaluate it. Adding a new target = adding a new profile, no code changes.
 
-## Usage
-
-1. **Install**: clone this repo into `~/.claude/plugins/prompt-eval` (or another path your Claude Code installation reads plugins from).
-2. **Set `MISTRAL_API_KEY`** in your environment.
-3. **Enable Agent Teams**: ensure `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1` is set in `~/.claude/settings.json`.
-4. **Verify prerequisites**: `./scripts/check-prereqs.sh`
-5. **From a Claude Code session**: `/prompt-eval ai-board.specify`
-
-See [`docs/adding-a-target.md`](docs/adding-a-target.md) to evaluate other prompts.
-
-## Tests
+## Install
 
 ```bash
-bun test         # full unit test suite
-bun run typecheck
+# 1. Set the Mistral API key (used by the L1 stability evaluator)
+export MISTRAL_API_KEY="..."
+
+# 2. Make sure Agent Teams is enabled in ~/.claude/settings.json:
+#    "CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS": "1"
 ```
+
+Then, in a Claude Code session:
+
+```
+/plugin marketplace add bfernandez31/prompt-eval
+/plugin install prompt-eval@prompt-eval
+```
+
+Restart the session. The skill is now invoked as `/prompt-eval <profile>`.
+
+The plugin ships a bundled `dist/cli.js` (yaml dependency embedded), so no `bun install` is required to use it. Bun itself is required at runtime to execute `dist/cli.js`.
+
+## Usage
+
+```
+/prompt-eval ai-board.specify
+```
+
+The skill opens an interactive hypothesis loop, then dispatches an Agent Team to evaluate each hypothesis through the cascade and report back. See [`docs/adding-a-target.md`](docs/adding-a-target.md) to evaluate other prompts.
+
+## Contributing / Dev Workflow
+
+```bash
+git clone https://github.com/bfernandez31/prompt-eval
+cd prompt-eval
+bun install              # only needed for development
+bun test                 # 44 unit tests
+bun run typecheck        # strict TS
+bun run build            # rebuild dist/cli.js after editing lib/
+```
+
+When touching `lib/`, always rebuild `dist/cli.js` and commit it alongside the source change so end users get the updated logic without `bun install`.
 
 ## Roadmap
 
