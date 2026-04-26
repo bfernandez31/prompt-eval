@@ -6,7 +6,8 @@
   "scripts": {
     "test": "bun test",
     "typecheck": "tsc --noEmit",
-    "prompt-eval": "bun run lib/cli.ts"
+    "build": "bun build lib/cli.ts --target=bun --outfile=dist/cli.js",
+    "prompt-eval": "bun run dist/cli.js"
   },
   "dependencies": {
     "yaml": "^2.6.0"

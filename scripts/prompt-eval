@@ -1,4 +1,12 @@
 #!/usr/bin/env bash
 set -euo pipefail
 HERE="$(cd "$(dirname "$0")/.." && pwd)"
-exec bun run "$HERE/lib/cli.ts" "$@"
+
+# Prefer the bundled dist (self-contained, ships with the plugin).
+# Fall back to running the TS source directly when dist is missing
+# (dev mode where the contributor edits lib/ but hasn't rebuilt yet).
+if [ -f "$HERE/dist/cli.js" ]; then
+  exec bun run "$HERE/dist/cli.js" "$@"
+else
+  exec bun run "$HERE/lib/cli.ts" "$@"
+fi
