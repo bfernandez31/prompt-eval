@@ -1,0 +1,30 @@
+name: test-profile
+description: A valid test profile
+target:
+  repo: /tmp/foo
+  prompt_file: prompt.md
+  invoke: "/foo"
+test_input:
+  payload: "hello"
+eval:
+  runs_per_hypothesis: 5
+  concurrency_per_hypothesis: 3
+  max_hypotheses_per_round: 5
+  level1_stability:
+    output_artifact: "out/{branch}.md"
+    embedding_model: mistral-embed
+    threshold: 0.85
+  level2_decisions:
+    section_name: "Decisions"
+    parser: structured_list
+    decision_key: "Decision summary"
+    threshold_pct: 95
+  level3_quality:
+    judge_model: claude-haiku-4-5
+    double_blind: true
+    rubric: "compare A and B"
+limits:
+  max_rounds: 5
+  max_budget_usd: 10.0
+mode: semi-auto
+initial_hypotheses: []

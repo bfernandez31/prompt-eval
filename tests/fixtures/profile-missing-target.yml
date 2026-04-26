@@ -1,0 +1,4 @@
+name: bad-profile
+description: missing target
+test_input:
+  payload: "hello"
