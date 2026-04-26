@@ -1,0 +1,53 @@
+name: ai-board.specify
+description: Evaluate /ai-board.specify on a representative feature description.
+
+target:
+  repo: /Users/b.fernandez/Workspace/ai-board
+  prompt_file: .claude/commands/ai-board.specify.md
+  invoke: "/ai-board.specify"
+
+test_input:
+  payload: |
+    {
+      "ticketKey": "TEST-001",
+      "title": "Add CSV export for user data",
+      "description": "Allow users to download their data as CSV from the settings page.",
+      "clarificationPolicy": "AUTO"
+    }
+
+eval:
+  runs_per_hypothesis: 5
+  concurrency_per_hypothesis: 3
+  max_hypotheses_per_round: 5
+
+  level1_stability:
+    output_artifact: "specs/{branch}/spec.md"
+    embedding_model: mistral-embed
+    threshold: 0.85
+
+  level2_decisions:
+    section_name: "Auto-Resolved Decisions"
+    parser: structured_list
+    decision_key: "Decision summary"
+    threshold_pct: 95
+
+  level3_quality:
+    judge_model: claude-haiku-4-5
+    double_blind: true
+    rubric: |
+      Compare two specs (A and B) generated from the same feature description.
+      Evaluate on:
+      1. Relevance and defensibility of auto-resolved decisions.
+      2. Coverage of user scenarios (primary + edge cases).
+      3. Testability of functional requirements.
+      4. Absence of implementation details (no tech stack, no frameworks).
+      5. Right dosage of [NEEDS CLARIFICATION] markers (max 3, only critical).
+      Decide: "A" | "B" | "tied". One-line rationale.
+
+limits:
+  max_rounds: 5
+  max_budget_usd: 10.0
+
+mode: semi-auto
+
+initial_hypotheses: []
