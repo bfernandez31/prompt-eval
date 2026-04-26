@@ -13,4 +13,9 @@ describe("generateRunId", () => {
     const id = generateRunId("foo");
     expect(id).toMatch(/^\d{8}-\d{6}-foo$/);
   });
+
+  test("pads single-digit month, day, and time components", () => {
+    const id = generateRunId("foo", new Date("2026-01-01T00:00:05Z"));
+    expect(id).toBe("20260101-000005-foo");
+  });
 });
