@@ -1,0 +1,26 @@
+name: bad-profile
+description: target is a string instead of a mapping
+target: "not a mapping"
+test_input:
+  payload: "hello"
+eval:
+  runs_per_hypothesis: 1
+  concurrency_per_hypothesis: 1
+  max_hypotheses_per_round: 1
+  level1_stability:
+    output_artifact: x
+    embedding_model: x
+    threshold: 0.5
+  level2_decisions:
+    section_name: x
+    parser: structured_list
+    decision_key: x
+    threshold_pct: 95
+  level3_quality:
+    judge_model: x
+    double_blind: true
+    rubric: x
+limits:
+  max_rounds: 1
+  max_budget_usd: 1
+mode: semi-auto

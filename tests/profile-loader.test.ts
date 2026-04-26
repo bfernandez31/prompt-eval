@@ -20,14 +20,9 @@ describe("loadProfile", () => {
     );
   });
 
-  test("auto mode requires limits", async () => {
-    const p = await loadProfile(fixture("profile-valid.yml"));
-    p.mode = "auto";
-    p.limits.max_rounds = 0;
-    expect(() => {
-      if (p.mode === "auto" && (p.limits.max_rounds <= 0 || p.limits.max_budget_usd <= 0)) {
-        throw new Error("auto mode requires positive max_rounds and max_budget_usd");
-      }
-    }).toThrow(/auto mode/);
+  test("throws when target is not a mapping", async () => {
+    await expect(loadProfile(fixture("profile-target-not-mapping.yml"))).rejects.toThrow(
+      /target.*mapping/i,
+    );
   });
 });

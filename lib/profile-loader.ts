@@ -14,26 +14,36 @@ const REQUIRED_EVAL = [
   "level3_quality",
 ] as const;
 
-export async function loadProfile(path: string): Promise<Profile> {
-  const text = await readFile(path, "utf8");
+function isMapping(v: unknown): v is Record<string, unknown> {
+  return typeof v === "object" && v !== null && !Array.isArray(v);
+}
+
+export async function loadProfile(profilePath: string): Promise<Profile> {
+  const text = await readFile(profilePath, "utf8");
   const raw = parse(text) as Record<string, unknown>;
 
   for (const key of REQUIRED_TOP) {
-    if (!(key in raw)) throw new Error(`profile ${path}: missing required top-level key '${key}'`);
+    if (!(key in raw)) throw new Error(`profile ${profilePath}: missing required top-level key '${key}'`);
   }
 
-  const target = raw.target as Record<string, unknown>;
+  if (!isMapping(raw.target)) {
+    throw new Error(`profile ${profilePath}: 'target' must be a mapping`);
+  }
   for (const key of REQUIRED_TARGET) {
-    if (!(key in target)) throw new Error(`profile ${path}: target missing '${key}'`);
+    if (!(key in raw.target)) throw new Error(`profile ${profilePath}: target missing '${key}'`);
   }
 
-  const ev = raw.eval as Record<string, unknown>;
+  if (!isMapping(raw.eval)) {
+    throw new Error(`profile ${profilePath}: 'eval' must be a mapping`);
+  }
   for (const key of REQUIRED_EVAL) {
-    if (!(key in ev)) throw new Error(`profile ${path}: eval missing '${key}'`);
+    if (!(key in raw.eval)) throw new Error(`profile ${profilePath}: eval missing '${key}'`);
   }
 
-  // Default initial_hypotheses to []
   if (!("initial_hypotheses" in raw)) raw.initial_hypotheses = [];
 
+  // Validation above checks key existence + that target/eval are mappings.
+  // Nested value types (limits, test_input, level1/2/3 internals) are assumed correct;
+  // they will surface as runtime errors downstream if malformed.
   return raw as unknown as Profile;
 }
