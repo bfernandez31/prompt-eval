@@ -12,7 +12,7 @@ The cascade short-circuits: a variation that fails stability never pays for the 
 
 ## Status
 
-🚧 Early development. Design doc in progress.
+🚧 Early development. Design doc: [`docs/specs/2026-04-26-prompt-eval-framework-design.md`](docs/specs/2026-04-26-prompt-eval-framework-design.md).
 
 ## Architecture
 
