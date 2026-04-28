@@ -80,7 +80,32 @@ For each hypothesis:
 3. User approves / edits / rejects
 4. Repeat until 3-5 hypotheses are collected, or user says `go`
 
-Cap at `profile.eval.max_hypotheses_per_round`. Persist into `eval-run.yml.hypotheses_round_1`.
+Cap at `profile.eval.max_hypotheses_per_round`.
+
+**Persist diffs as separate files, NOT inline in the YAML state.** YAML serialisers fold long strings into `>` block scalars, which corrupts unified diffs (line-wrapping, lost leading whitespace, blank lines inserted) past `git apply`/`patch` recovery.
+
+For each approved hypothesis `Hn`:
+
+```bash
+hk_dir="$run_dir/rounds/round-1/hypotheses/H$n"
+mkdir -p "$hk_dir"
+# Use printf with %s to preserve every byte verbatim (no echo -e quirks).
+printf '%s' "$DIFF_CONTENT" > "$hk_dir/variation.diff"
+printf '%s' "$DESCRIPTION" > "$hk_dir/description.md"
+```
+
+Then persist metadata only into `eval-run.yml.hypotheses_round_1`. Each entry is:
+
+```yaml
+hypotheses_round_1:
+  - id: H1
+    description: "(short label, single line)"
+    diff_path: "rounds/round-1/hypotheses/H1/variation.diff"  # relative to $run_dir
+  - id: H2
+    ...
+```
+
+If you must hand-write YAML for this (rather than going through `lib/state.ts writeState`), use the `yaml` package with `{ lineWidth: 0 }` to disable folding.
 
 # Phase 2 — Per Round (loop)
 
@@ -116,8 +141,11 @@ hk_base="$clones_root/round-$N-$Hk-base"
 echo "{\"source\":\"$baseline_clone\",\"dest\":\"$hk_base\"}" \
   | "$plugin_root/scripts/prompt-eval" clone-shared
 
-# Apply the hypothesis diff. The diff is in eval-run.yml.hypotheses_round_$N[Hk].diff.
-echo "{\"cwd\":\"$hk_base\",\"diff\":<json-escaped-diff>}" \
+# Read the hypothesis diff from the file referenced in eval-run.yml.hypotheses_round_$N[Hk].diff_path.
+diff_path="$run_dir/$(yq '.hypotheses_round_'$N'[] | select(.id == "'$Hk'") | .diff_path' "$run_dir/eval-run.yml")"
+diff_content=$(cat "$diff_path")
+# JSON-escape the diff content for the CLI invocation.
+echo "{\"cwd\":\"$hk_base\",\"diff\":$(jq -Rs . <<< "$diff_content")}" \
   | "$plugin_root/scripts/prompt-eval" apply-diff
 
 echo "{\"repoPath\":\"$hk_base\",\"message\":\"apply $Hk\"}" \

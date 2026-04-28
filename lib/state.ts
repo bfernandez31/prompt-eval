@@ -51,7 +51,11 @@ export async function readState(stateDir: string): Promise<RunState> {
 }
 
 export async function writeState(stateDir: string, s: RunState): Promise<void> {
-  await writeFile(join(stateDir, FILE), stringify(s));
+  // lineWidth: 0 disables YAML's line-folding entirely. Without this, multi-line
+  // strings (e.g. unified diffs persisted alongside the run state) get rewritten
+  // into folded ">" scalars with inserted line breaks and lost leading whitespace,
+  // which corrupts them past `git apply` / `patch` recovery.
+  await writeFile(join(stateDir, FILE), stringify(s, { lineWidth: 0 }));
 }
 
 // addBudget is not concurrency-safe (read-modify-write). Single-controller use only.
