@@ -16,8 +16,8 @@ test_input:
     }
 
 eval:
-  runs_per_hypothesis: 5
-  concurrency_per_hypothesis: 3
+  runs_per_hypothesis: 3
+  concurrency_per_hypothesis: 2
   max_hypotheses_per_round: 5
 
   level1_stability:
@@ -46,7 +46,7 @@ eval:
 
 limits:
   max_rounds: 5
-  max_budget_usd: 10.0
+  max_budget_usd: 50.0
 
 mode: semi-auto
 
