@@ -18,7 +18,15 @@ export interface RunHeadlessResult {
 
 export async function runHeadless(args: RunHeadlessArgs): Promise<RunHeadlessResult> {
   const claude = args.claudePath ?? "claude";
-  const argv = ["--print", "--output-format", "json", `${args.invoke} ${args.payload}`];
+  // --dangerously-skip-permissions is REQUIRED for headless runs that invoke slash-commands
+  // touching the filesystem (e.g. /ai-board.specify writing specs/<branch>/spec.md). Without it,
+  // child sessions sandbox Bash/Write and the run produces no artifact.
+  const argv = [
+    "--print",
+    "--output-format", "json",
+    "--dangerously-skip-permissions",
+    `${args.invoke} ${args.payload}`,
+  ];
 
   const child = spawn(claude, argv, { cwd: args.cwd });
   let stdout = "";
