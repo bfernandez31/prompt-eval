@@ -236,6 +236,66 @@ Don't force these into hypotheses if the target doesn't have the surface. But if
 
 ---
 
+## Size-aware hypothesis design
+
+A hypothesis that fixes one axis but bloats the prompt has a hidden cost: bloat regresses the other axes. A 60-line example block dropped inline lifts axis 7 (Examples) but tanks axes 1 (Clarity), 2 (Directness), and 4 (Process Steps) because the prompt becomes harder to read. The bracket judge will see this and may reject the hypothesis even though "the example was good".
+
+**Rule:** before proposing any hypothesis, estimate its diff size. Reject anything that would add more than ~15 lines to the prompt unless you have a strong reason. Use these size-saving patterns instead:
+
+### For axis 6 (XML structure)
+
+Wrap **only the interpolated content blocks** (schemas, contracts, templates) — typically 3-6 wraps total, ~10-12 lines added. Do NOT wrap every section header or every paragraph. The point is to delimit content boundaries, not to XML-ify the whole document.
+
+### For axis 7 (Examples) — most likely to bloat
+
+**Pattern: external file + 3-line teaser + reference.**
+
+❌ Bad: paste 60 lines of `<sample_input>` + `<ideal_output>` + commentary directly into the prompt.
+
+✅ Good: create `examples/<name>-sample.md` with the full worked example (wrapped in `<sample_input>`/`<ideal_output>` + commentary inside that file), then add to the prompt:
+
+```
+For a complete worked example of <thing>, see [`examples/<name>-sample.md`](../examples/<name>-sample.md). It shows <one-line summary>.
+```
+
+The audit's axis 7 score still goes up — the skill explicitly references the sample with the right tag pattern, and the example is reachable. But the prompt itself only gains ~3 lines.
+
+### For axis 9 (Parameter tuning rationale)
+
+**Pattern: inline one-liner.**
+
+❌ Bad: a 5-line commentary block above each magic number explaining the historical choice.
+
+✅ Good: parenthetical inline rationale, ≤1 line per number:
+
+```
+... cap at 15 (Agent Teams hard limit is 16, leave 1 slot for the lead).
+... fallback when confidence < 0.5 (below this, signal is noise).
+```
+
+### For axis 8 (Robustness fallbacks)
+
+**Pattern: terse `if-condition: action` lines, not paragraphs.**
+
+❌ Bad: a 4-paragraph explanation of what happens when the input is malformed.
+
+✅ Good:
+
+```
+If <profile.target.repo> is missing: abort with "<message>".
+If <input field> is empty: substitute <default> and continue.
+```
+
+### For axis 4 (Process Steps), 3 (Output Guidelines), 1/2/5 (Clarity/Directness/Specificity)
+
+These are typically **rephrasings or substitutions**, not additions. Diff size is usually neutral or negative. No special pattern needed — just keep diffs surgical.
+
+### Total budget per round
+
+If your 3-5 hypotheses for a round, summed, would add more than ~50 lines to the prompt: split across multiple rounds instead. Round 1: structural fixes (axes 6, 9). Round 2: example pointers (axis 7). Round 3: tightening (axes 1, 2, 5). The cascade rewards small, attributable changes.
+
+---
+
 ## Generation Heuristics for the Skill
 
 When you propose hypotheses for round 1 (auto mode) or round N+1 (any mode), follow these rules:
@@ -244,7 +304,7 @@ When you propose hypotheses for round 1 (auto mode) or round N+1 (any mode), fol
 
 2. **Prefer additions over deletions.** Adding output guidelines, adding a process step block, adding a specificity bound — easier to evaluate signal-wise than rewrites.
 
-3. **Keep diffs small.** A 3-line patch to one section is much easier for the bracket judge to score than a 50-line rewrite. Aim for tight, surgical changes.
+3. **Keep diffs small AND size-aware.** A 3-line patch to one section is much easier for the bracket judge to score than a 50-line rewrite. Aim for tight, surgical changes. Before proposing, estimate the diff size — if it would add >15 lines to the prompt, reformulate using a size-saving pattern (see "Size-aware hypothesis design" above) or split across rounds. Bloat regresses other axes.
 
 4. **Cover multiple axes across hypotheses.** If round 1 has 3 hyp, target 3 different axes. If two hyp target the same axis, you're wasting a slot.
 

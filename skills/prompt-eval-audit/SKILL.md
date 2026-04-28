@@ -80,6 +80,15 @@ Check: does the prompt have numeric parameters (weights, thresholds, max counts,
 
 For each axis scoring **< 7**, generate one recommendation. (Rationale for the `< 7` threshold: an axis at 7+ is "good enough that a forced fix would be premature optimisation". Below 7, the gap is material enough that proposing a fix has positive expected value.)
 
+**Size-aware diffs.** Each suggested diff must respect the `≤ 10 lines` rule — but more importantly, it must use the size-saving patterns from `references/prompt-best-practices.md` § Size-aware hypothesis design. Specifically:
+
+- **Axis 7 (Examples) recommendations** must propose an external file under `examples/` plus a 2-3 line teaser + reference in the prompt. Never inline 50 lines of `<sample_input>`/`<ideal_output>` directly into the audited prompt.
+- **Axis 6 (XML) recommendations** wrap interpolated content blocks only (3-6 wraps total), not every section header.
+- **Axis 9 (Parameter Tuning) recommendations** add inline parenthetical rationale (≤1 line per number), not paragraph commentary.
+- **Axis 8 (Robustness) recommendations** add terse `if-condition: action` lines, not paragraphs.
+
+If a clean fix would require >15 added lines, mark the recommendation as `category: ab_test` with a note that the fix needs to be split across multiple rounds.
+
 ```
 ### Recommendation N: [Axis K: <name>] <short title>
 
