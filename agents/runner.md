@@ -87,9 +87,18 @@ fi
 
 The headless output JSON has shape `{ result, usage: { input_tokens, output_tokens, cost_usd } }`.
 
-## Step 8 — Report back via SendMessage
+## Step 8 — Persist report to disk, THEN SendMessage
 
-Send to the team lead:
+**Persist the report to disk FIRST.** SendMessage from a teammate to the lead is best-effort — it can be silently dropped when the teammate's context unwinds. The lead must be able to recover the report even if the message never arrives.
+
+```bash
+report_path="<outputs_root>/run-<run_index>.report.json"
+cat > "$report_path" <<EOF
+<the JSON report below, fully populated>
+EOF
+```
+
+THEN call `SendMessage` to the lead with the same JSON payload as the message body. The lead will prefer the SendMessage when it arrives, but fall back to reading `<outputs_root>/run-<run_index>.report.json` for any runner whose message didn't arrive.
 
 <runner_report>
 ```json

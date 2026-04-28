@@ -1,6 +1,6 @@
 {
   "name": "prompt-eval",
-  "version": "0.0.14",
+  "version": "0.0.15",
   "description": "Self-improvement framework for Claude Code prompts",
   "license": "MIT",
   "type": "module",

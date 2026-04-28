@@ -18,7 +18,19 @@ The team lead dispatches the runner with:
 </sample_input>
 
 <ideal_output>
-After the runner finishes its 8-step procedure, it sends back:
+After the runner finishes its 8-step procedure, it persists the report to disk AND sends it via SendMessage. The on-disk copy is the lead's fallback when SendMessage doesn't arrive (some teammate→lead messages get dropped silently in practice).
+
+```bash
+# Step 8a — write the report to disk first
+cat > "$outputs_root/run-2.report.json" <<EOF
+<JSON below>
+EOF
+
+# Step 8b — then SendMessage
+SendMessage(to: "team-lead", message: <same JSON>)
+```
+
+The JSON payload (identical in both places):
 
 ```json
 {

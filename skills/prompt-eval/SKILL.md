@@ -261,6 +261,8 @@ For each `(Hk, k)` and each `(baseline, k)`:
 
 Wait for all runner teammates to return. Each returns a JSON status (see `agents/runner.md` §Step 8 and the canonical example at `examples/sample-runner-output.md`). Persist these into `$round_dir/hypotheses/$Hk/eval/runs.json`.
 
+**Resilience to lost SendMessage.** Teammate→lead `SendMessage` is best-effort: in practice some runners' messages don't reach the lead even though the runner did its work. The runner contract therefore requires every runner to write its report to `<outputs_root>/run-<run_index>.report.json` BEFORE calling SendMessage. After the dispatch wave returns, **for every runner whose SendMessage didn't arrive, read its `report.json` from disk** instead. Only treat a runner as truly missing if both the SendMessage and the on-disk report are absent.
+
 After all runners return, increment `state.budget_consumed_usd` by the sum of all returned `usage.cost_usd` and persist via `lib/state.ts addBudget`. **Check budget gate**: if exceeded, finalise the round as-is (no more dispatches in subsequent rounds).
 
 ## 2.5 Aggregate L1 + L2 per hypothesis
