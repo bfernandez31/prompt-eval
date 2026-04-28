@@ -30,7 +30,9 @@ eval:
   level2_decisions:
     section_name: "Auto-Resolved Decisions"
     parser: structured_list
-    decision_key: "Decision summary"
+    # The actual generated prompt uses `**Decision**:` (singular line label),
+    # not `**Decision summary**:`. Match what the model writes.
+    decision_key: "Decision"
     threshold_pct: 95
 
   level3_quality:

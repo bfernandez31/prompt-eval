@@ -41,6 +41,10 @@ export async function runHeadless(args: RunHeadlessArgs): Promise<RunHeadlessRes
   ];
 
   const child = spawn(claude, argv, { cwd: args.cwd });
+  // Close stdin immediately. Without this, `claude --print` may wait on stdin
+  // for some invocation shapes (e.g. the judge subcommand) and hang. The slash
+  // command + payload is passed entirely on argv, so we never need to feed stdin.
+  child.stdin.end();
   let stdout = "";
   let stderr = "";
   child.stdout.on("data", (d: Buffer) => { stdout += d.toString(); });

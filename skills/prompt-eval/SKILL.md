@@ -24,6 +24,28 @@ This is a deliberate flat architecture:
 
 # Phase 1 — Bootstrap
 
+## 1.0 Pre-flight checks (fail fast, fail loudly)
+
+Before doing any work, verify the environment can run a full cascade. Otherwise the user pays for a partial run that silently downgrades.
+
+```bash
+# Required for the bracket judge and the runners.
+command -v claude >/dev/null || { echo "ABORT: claude CLI not on PATH"; exit 1; }
+command -v bun    >/dev/null || { echo "ABORT: bun not on PATH"; exit 1; }
+command -v patch  >/dev/null || { echo "ABORT: patch not on PATH"; exit 1; }
+
+# Required for L1 stability (Mistral embeddings). If absent, L1 will be SKIPPED
+# and every hypothesis is treated as L1-passing — the bracket becomes the only
+# quality signal. WARN explicitly so the user can opt to abort and set the key.
+if [ -z "${MISTRAL_API_KEY:-}" ]; then
+  echo "WARN: MISTRAL_API_KEY not set. L1 stability will be skipped; hypotheses are admitted to L2/bracket without per-pair embedding similarity. Continue? (Y/N)"
+fi
+```
+
+In `mode: auto`: if `MISTRAL_API_KEY` is absent, proceed with the warning recorded in the round report (no interactive prompt).
+
+In `mode: semi-auto`: ask the user explicitly before proceeding.
+
 ## 1.1 Resolve plugin_root
 
 `plugin_root` is the absolute path to this plugin's install directory. From within this skill:

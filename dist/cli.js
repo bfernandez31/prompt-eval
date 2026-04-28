@@ -106,7 +106,8 @@ async function evaluateL1(args) {
 function parseStructuredList(markdown, sectionName, decisionKey) {
   const lines = markdown.split(`
 `);
-  const sectionStart = lines.findIndex((l) => /^##\s+/.test(l) && l.replace(/^##\s+/, "").trim() === sectionName);
+  const stripDecorations = (s) => s.replace(/^##\s+/, "").trim().replace(/\s*[(*].*$/, "").trim();
+  const sectionStart = lines.findIndex((l) => /^##\s+/.test(l) && stripDecorations(l) === sectionName);
   if (sectionStart === -1)
     return [];
   let sectionEnd = lines.length;
@@ -321,6 +322,7 @@ async function runHeadless(args) {
     `${args.invoke} ${args.payload}`
   ];
   const child = spawn3(claude, argv, { cwd: args.cwd });
+  child.stdin.end();
   let stdout = "";
   let stderr = "";
   child.stdout.on("data", (d) => {
