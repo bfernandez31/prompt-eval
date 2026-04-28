@@ -40,11 +40,13 @@ eval:
       Compare two specs (A and B) generated from the same feature description.
 
       # Universal axes (apply to any prompt — see references/prompt-best-practices.md)
-      - Clarity: no vague preamble, no hedge language
-      - Directness: imperative instructions rather than open-ended questions
-      - Output guidelines: explicit constraints on length, structure, required elements
-      - Process steps: when complex, numbered steps that meaningfully constrain the work
-      - Specificity: concrete bounds rather than generic phrasing
+      - Clarity:           no vague preamble, no hedge language
+      - Directness:        imperative instructions rather than open-ended questions
+      - Output Guidelines: explicit constraints on length, structure, required elements
+      - Process Steps:     when complex, numbered steps that meaningfully constrain the work
+      - Specificity:       concrete bounds rather than generic phrasing
+      - Structure:         semantic XML tags delimit sections cleanly
+      - Examples:          if present, wrapped in <sample_input>/<ideal_output> with commentary
 
       # Target-specific (ai-board.specify)
       - Relevance and defensibility of auto-resolved decisions
