@@ -80,14 +80,19 @@ Check: does the prompt have numeric parameters (weights, thresholds, max counts,
 
 For each axis scoring **< 7**, generate one recommendation. (Rationale for the `< 7` threshold: an axis at 7+ is "good enough that a forced fix would be premature optimisation". Below 7, the gap is material enough that proposing a fix has positive expected value.)
 
-**Size-aware diffs.** Each suggested diff must respect the `≤ 10 lines` rule — but more importantly, it must use the size-saving patterns from `references/prompt-best-practices.md` § Size-aware hypothesis design. Specifically:
+**Size-aware diffs.** Compute the per-hypothesis budget from the target prompt's current size (see `references/prompt-best-practices.md` § Size-aware hypothesis design):
 
-- **Axis 7 (Examples) recommendations** must propose an external file under `examples/` plus a 2-3 line teaser + reference in the prompt. Never inline 50 lines of `<sample_input>`/`<ideal_output>` directly into the audited prompt.
-- **Axis 6 (XML) recommendations** wrap interpolated content blocks only (3-6 wraps total), not every section header.
-- **Axis 9 (Parameter Tuning) recommendations** add inline parenthetical rationale (≤1 line per number), not paragraph commentary.
-- **Axis 8 (Robustness) recommendations** add terse `if-condition: action` lines, not paragraphs.
+- **≤ 50 lines** → up to **+200%** budget. Inline an example if the prompt has none; `examples/` indirection is overkill at this scale.
+- **50-200 lines** → ≤ **30%** budget. Prefer size-saving patterns when they don't hurt readability.
+- **≥ 200 lines** → ≤ **10%** budget. Size-saving patterns mandatory: external `examples/` files, inline parenthetical rationale (≤1 line per magic number), terse `if-condition: action` fallbacks (not paragraphs), wrap only interpolated content blocks (3-6 wraps total, not every section).
 
-If a clean fix would require >15 added lines, mark the recommendation as `category: ab_test` with a note that the fix needs to be split across multiple rounds.
+**Score-aware classification (`quick_fix` vs `ab_test`).** Use the audit's overall score to set the threshold:
+
+- **Overall < 5** → even structural rewrites can be `quick_fix`. The prompt is so weak the upside dominates the regression risk.
+- **Overall 5-7** → standard rule. `quick_fix` = low-risk additions, `ab_test` = behaviour-changing.
+- **Overall > 7** → every non-trivial change is `ab_test`. Diminishing returns.
+
+If a clean fix would still exceed its budget, mark it `category: ab_test` with a "split across rounds" note in the recommendation.
 
 ```
 ### Recommendation N: [Axis K: <name>] <short title>

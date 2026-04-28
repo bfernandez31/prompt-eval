@@ -240,7 +240,31 @@ Don't force these into hypotheses if the target doesn't have the surface. But if
 
 A hypothesis that fixes one axis but bloats the prompt has a hidden cost: bloat regresses the other axes. A 60-line example block dropped inline lifts axis 7 (Examples) but tanks axes 1 (Clarity), 2 (Directness), and 4 (Process Steps) because the prompt becomes harder to read. The bracket judge will see this and may reject the hypothesis even though "the example was good".
 
-**Rule:** before proposing any hypothesis, estimate its diff size. Reject anything that would add more than ~15 lines to the prompt unless you have a strong reason. Use these size-saving patterns instead:
+**Rule:** before proposing any hypothesis, estimate its diff size relative to the target prompt's current size, then apply the size-saving patterns below.
+
+<size_thresholds>
+| Target prompt size | Per-hypothesis budget | Why |
+|---|---|---|
+| **≤ 50 lines** (under-specified) | up to **+200%** of current size | The prompt is so empty that big structural additions are necessary, not optional. Inline an example if the prompt has none — `examples/` indirection is overkill at this scale. |
+| **50-200 lines** (typical) | ≤ **30%** of current size | Standard case. Use size-saving patterns (external file + reference) when they don't hurt readability. |
+| **≥ 200 lines** (large) | ≤ **10%** of current size, size-saving patterns mandatory | The cost of adding a line is high — every line dilutes the surrounding instructions. Always go via `examples/` files, inline rationale, terse fallbacks. |
+</size_thresholds>
+
+(Rationale for the bins: prompt sizes empirically cluster around 20-50 (single-task), 80-150 (multi-step commands), and 250+ (orchestration skills). The 50 / 200 boundaries split those clusters cleanly.)
+
+**Score-aware classification (audit `quick_fix` vs `ab_test`):** the classification depends on the audit's overall score, not just the diff size.
+
+<score_aware_classification>
+| Overall audit score | Classification policy |
+|---|---|
+| **< 5** (poor) | Even structural rewrites can be `quick_fix`. The prompt is so weak that the risk of regression is dominated by the upside of any reasonable change. |
+| **5-7** (mediocre) | Standard rule. `quick_fix` = low-risk additions, `ab_test` = behaviour-changing. |
+| **> 7** (good) | Every non-trivial change is `ab_test`. Diminishing returns, regression risk dominates. |
+</score_aware_classification>
+
+(Rationale for 5 / 7: on a 0-10 axis where 1 is catastrophic and 10 is best-practice perfect, 5 is the "minimally working" floor and 7 is the "good enough that further changes need empirical proof" line.)
+
+Use the size-saving patterns below for any hypothesis that would otherwise exceed its budget:
 
 ### For axis 6 (XML structure)
 
@@ -304,7 +328,7 @@ When you propose hypotheses for round 1 (auto mode) or round N+1 (any mode), fol
 
 2. **Prefer additions over deletions.** Adding output guidelines, adding a process step block, adding a specificity bound — easier to evaluate signal-wise than rewrites.
 
-3. **Keep diffs small AND size-aware.** A 3-line patch to one section is much easier for the bracket judge to score than a 50-line rewrite. Aim for tight, surgical changes. Before proposing, estimate the diff size — if it would add >15 lines to the prompt, reformulate using a size-saving pattern (see "Size-aware hypothesis design" above) or split across rounds. Bloat regresses other axes.
+3. **Keep diffs size-aware (relative, not absolute).** Compute the per-hypothesis budget from the target prompt's current size — see the table in "Size-aware hypothesis design" above. A 60-line addition is fine on a 30-line under-specified prompt, but disastrous on a 250-line orchestration skill. When in doubt, prefer size-saving patterns (external file + reference, terse fallbacks, inline rationale) and split across rounds.
 
 4. **Cover multiple axes across hypotheses.** If round 1 has 3 hyp, target 3 different axes. If two hyp target the same axis, you're wasting a slot.
 
