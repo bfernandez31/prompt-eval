@@ -183,22 +183,66 @@ The `audits/` directory is gitignored (already covered by the framework's `.eval
 
 ## Step 7 — Final output to user
 
-Print to the chat:
+Print the **entire audit summary to the chat**, not just the top recommendation. The user paid for the analysis; they shouldn't have to `cat` the file to see the result. The saved report stays on disk for persistence and for full diffs, but the chat must be self-contained.
+
+Format the chat output like this (markdown rendered inline by Claude Code):
 
 ```
 ✓ Audit complete: <report_path>
 
-Overall: <overall>/10
+# <basename of prompt>
 
-Quick fixes available: <count>     (low-risk, apply directly)
-A/B test candidates:    <count>    (worth validating via /prompt-eval)
+**Overall:** <overall>/10
 
-Top recommendation: [Axis K: <name>] <title>
+| Axis | Name | Score | One-line |
+|---|---|---|---|
+| 1 | Clarity | 7/10 | minor preamble in section "Outline" |
+| 2 | Directness | 8/10 | mostly imperative |
+| ... (all 7) ... |
 
-Next step:
-  cat <report_path>                  # read the full audit
-  # or apply quick fixes inline, then run /prompt-eval if you want to A/B-test the rest
+## Quick fixes (apply directly)
+
+### 1. [Axis K: <name>] <short title>
+- Affects: lines <a-b> of the prompt (or "section X")
+- Change: <one-line description of the edit>
+- Diff size: ~<n> lines
+- Risk: low — <why it's a quick fix>
+
+### 2. ... (one block per quick fix)
+
+## A/B test candidates (validate via /prompt-eval)
+
+### 1. [Axis K: <name>] <short title>
+- Affects: <where>
+- Change: <one-line description>
+- Why it needs testing: <one line — material behaviour change, format shift, etc.>
+- Expected impact: high | medium | low
+
+### 2. ... (one block per A/B candidate)
+
+## Findings (verbatim quotes that drove the scoring)
+
+### Axis 1 — Clarity (7/10)
+> "<quote 1, ≤2 lines>"
+> "<quote 2 if any>"
+
+### Axis 6 — Structure (3/10)
+> "<quote showing untagged content block>"
+
+(only show axes scoring < 7 — the others are already fine)
+
+## Where to go next
+
+- **Apply quick fixes inline** — diffs are in the report at <report_path>:
+    cd <repo-root> && patch -p1 < <(extract from report)
+- **Run an empirical pass for the A/B candidates**:
+    /prompt-eval-init <profile-name>      # if no profile yet
+    /prompt-eval <profile-name>            # cascade with the candidates as initial_hypotheses
+
+Full report with all diffs: <report_path>
 ```
+
+Goal: every recommendation has its title, scope, and category visible in the chat. Diffs themselves stay in the saved report (they can be 10-50 lines each — too much for chat). The user reads the chat, decides what to apply, and only opens the report when they need a specific diff.
 
 # Notes
 

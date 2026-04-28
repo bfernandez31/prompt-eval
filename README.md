@@ -1,26 +1,71 @@
 # prompt-eval
 
-A self-improvement framework for prompts (Claude Code commands, skills, agents).
+A self-improvement framework for **Claude Code prompts** (slash-commands, skills, agents).
 
-Three skills, one pipeline:
+Two ways to improve a prompt:
+- **Static analysis** — read the prompt, score it against proven prompt-engineering best practices, list specific weak spots and ranked fixes. Cheap and immediate.
+- **Empirical evaluation** — A/B test candidate variations against the current baseline by running them N times each, scoring stability + decision-consistency, and putting the survivors through a pairwise judge bracket. More expensive but rigorous.
 
-| Skill | Cost | Purpose |
-|---|---|---|
-| `/prompt-eval-audit` | ~$0.10 | **Static audit** — score a prompt against 7 best-practice axes, list quick wins and A/B candidates |
-| `/prompt-eval-init` | $0 | **Wizard** — generate a profile YAML for a new target in ~6 questions, no manual YAML editing |
-| `/prompt-eval` | $5–50/round | **Empirical eval** — run hypothesis variations through a 3-level cascade (stability → decision-consistency → pairwise quality bracket) |
-
-Run them in order. Audit first to harvest the obvious wins for free. Init to scaffold a profile. Eval to A/B-test the genuinely ambiguous changes that need empirical validation.
+This plugin gives you both, plus a wizard so you don't have to write any YAML by hand.
 
 ---
 
-## Why this exists
+## What is a profile?
 
-When you write a Claude Code prompt (a slash-command, a skill, an agent), you'll iterate on it dozens of times. Most "improvements" are guesses — you tweak something and hope. This framework gives you two grounded ways to improve:
+A **profile** is a small YAML file under `profiles/` that describes one prompt you want to evaluate. Think of it as the per-target config: where the prompt lives, how to invoke it, what a representative input looks like, where its output lands, how to grade competing variations.
 
-1. **Static analysis (cheap, immediate).** Compare the prompt against [`references/prompt-best-practices.md`](references/prompt-best-practices.md) — 7 universal axes (Clarity, Directness, Output Guidelines, Process Steps, Specificity, XML Structure, Examples) condensed from Anthropic's prompt-engineering guidance. Many improvements are obvious from inspection: missing length cap, generic phrasings, unwrapped content blocks, no examples. Audit catches those.
+Concretely, a profile holds:
 
-2. **Empirical evaluation (more expensive, more rigorous).** For changes where you can't tell whether a tweak helps or hurts (e.g. "should I cap NEEDS CLARIFICATION at 1 instead of 3?"), run an A/B test. Each variation is executed N times, evaluated for stability and decision-consistency, then survivors face off in a pairwise judge bracket. The winning variation becomes your new baseline.
+```yaml
+name: ai-board.specify
+
+target:
+  repo: /Users/me/Workspace/ai-board                       # git repo containing the prompt
+  prompt_file: .claude-plugin/commands/ai-board.specify.md # path inside the repo
+  invoke: "/ai-board.specify"                              # slash-command to call
+
+test_input:
+  payload: |                                # representative input passed to the prompt
+    {"ticketKey": "TEST-001", "title": "...", ...}
+
+eval:
+  runs_per_hypothesis: 3                    # how many times to run each variation
+  level1_stability: { ... }                 # embedding model + threshold for run-to-run consistency
+  level2_decisions: { ... }                 # which markdown section holds the structured decisions
+  level3_quality:
+    judge_model: claude-haiku-4-5
+    rubric: |                               # the criteria the bracket judge uses
+      Compare two outputs (A and B) ...
+
+limits:
+  max_rounds: 5
+  max_budget_usd: 50
+mode: semi-auto                             # semi-auto | auto
+```
+
+You write **one profile per prompt to evaluate**. Adding a new target = adding a new YAML file. No code changes, no rebuilds.
+
+The wizard `/prompt-eval-init` generates this file for you in ~6 questions. You'll only edit YAML by hand if you want to tune something later.
+
+---
+
+## Three skills, one pipeline
+
+| Skill | Cost | Purpose |
+|---|---|---|
+| `/prompt-eval-audit <path>` | `$` | **Static audit** — score the prompt against 7 best-practice axes, list quick wins and A/B candidates, no runs |
+| `/prompt-eval-init <name>` | `$` | **Wizard** — interactive Q&A that produces a validated `profiles/<name>.yml` |
+| `/prompt-eval <name>` | `$$$` | **Empirical eval** — runs hypothesis variations through the cascade (L1 stability → L2 decisions → L3 pairwise bracket) |
+
+Cost legend (relative, depends on prompt size and model choices):
+- `$` — pennies. One LLM call (audit) or zero LLM calls + a bit of file IO (init).
+- `$$$` — several to a few tens of dollars per round (`runs_per_hypothesis × hypotheses` invocations of the target prompt + a small bracket of judge calls).
+
+The intended workflow runs them in this order:
+
+1. **Audit** — harvest the obvious wins from static analysis. Apply the quick fixes directly.
+2. **Init** — scaffold a profile if you don't have one for this prompt yet.
+3. **Eval** — A/B-test the genuinely ambiguous changes (the audit's "A/B candidates", or hypotheses you formulate yourself) against the baseline. Adopt the bracket winner, repeat until convergence.
 
 ---
 
@@ -34,61 +79,69 @@ export MISTRAL_API_KEY="..."
 #    "CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS": "1"
 ```
 
-Then, in a Claude Code session:
+Then in a Claude Code session:
 
 ```
 /plugin marketplace add bfernandez31/prompt-eval
 /plugin install prompt-eval@prompt-eval
 ```
 
-Restart the session.
+Restart the session. The three skills (`/prompt-eval-audit`, `/prompt-eval-init`, `/prompt-eval`) are now available.
 
-The plugin ships a bundled `dist/cli.js` (the `yaml` dependency is embedded), so no `bun install` is needed at use-time. Bun itself is required at runtime to execute `dist/cli.js`.
+The plugin ships a bundled `dist/cli.js` with the `yaml` dependency embedded, so no `bun install` is required at use-time. Bun itself must be installed to execute `dist/cli.js`.
 
 ---
 
-## Typical workflow
+## Walkthrough
 
-### 1. Audit your prompt (~$0.10, ~30 seconds)
+### 1. Audit a prompt — `$`
 
 ```
-/prompt-eval-audit /Users/me/repo/.claude-plugin/commands/my-prompt.md
+/prompt-eval-audit /Users/me/Workspace/some-repo/.claude-plugin/commands/my-prompt.md
 ```
 
-Produces an audit report with:
-- Score per axis (1–10)
-- Specific findings with verbatim quotes
-- Ranked recommendations split into:
-  - **Quick fixes** (low-risk, apply directly)
-  - **A/B test candidates** (worth empirical validation)
-- Unified diffs ready to apply
+You get back, **inline in the chat**:
 
-Apply the quick fixes inline. Save the A/B candidates for step 3.
+- Score per axis (1-10) with one-line summaries
+- Each quick fix: title + scope + change description + diff size
+- Each A/B candidate: title + scope + why it needs empirical testing + expected impact
+- Verbatim quotes from the prompt for any axis scoring < 7
 
-### 2. Bootstrap a profile (~6 questions)
+A markdown report with the full unified diffs is also saved under `audits/`. You can apply quick fixes from there with `patch -p1`.
 
-If you don't already have a profile for this prompt:
+### 2. Bootstrap a profile — `$`
+
+If you don't have a profile for this prompt yet:
 
 ```
 /prompt-eval-init my-target-name
 ```
 
-The wizard reads the prompt, auto-detects what it can (target.repo, invoke pattern, output_artifact glob, decision section, rubric anchors), and asks you to confirm or edit. Saves a validated `profiles/my-target-name.yml`.
+The wizard:
+- Asks for the prompt path
+- Walks up to find the git repo and verifies the path is git-tracked (catches symlink gotchas)
+- Auto-detects the `invoke` pattern from the file location
+- Asks for a representative test input
+- Mines the prompt for `output_artifact`, the structured-decisions section, and rubric criteria
+- Asks for limits + mode (defaults shown, accept with Enter)
+- Composes, validates, and saves `profiles/my-target-name.yml`
 
-### 3. Run the evaluation (~$5–50 per round)
+You can re-edit the YAML at any time — it's just a config file.
+
+### 3. Run an empirical eval — `$$$`
 
 ```
-/prompt-eval my-target-name                       # semi-auto (default — checkpoints between rounds)
+/prompt-eval my-target-name                       # semi-auto: checkpoint between rounds
 /prompt-eval my-target-name --mode auto           # fully autonomous, runs to convergence/budget cap
 /prompt-eval my-target-name --max-budget 20       # tighten the cap on the fly
 /prompt-eval my-target-name --runs 3              # cheap pass (fewer runs per hypothesis)
 ```
 
-The skill spawns an Agent Team (1 lead + N runner teammates, each visible in the Claude Code tmux split) and runs the cascade:
+The skill becomes the team lead, dispatches one runner teammate per `(hypothesis, run_index)` (visible in the Claude Code Agent Teams tmux split), and runs the cascade:
 
-1. **L1 stability** — Mistral embeddings, cosine similarity across N runs. Gate: ≥ 0.85.
-2. **L2 decision consistency** — structured-list parsing of decisions. Gate: ≥ 95% Jaccard.
-3. **L3 quality bracket** — pairwise judging (haiku, double-blind) of survivors + baseline. Tied resolves in favour of the baseline.
+1. **L1 stability** — Mistral embeddings, mean cosine similarity across the N runs of each variation. Gate: ≥ 0.85.
+2. **L2 decision consistency** — parses the configured decisions section in each run, computes Jaccard over decision-key sets. Gate: ≥ 95%.
+3. **L3 quality bracket** — pairwise haiku judge (double-blind by default) on survivors + baseline. Tied resolves in favour of baseline.
 
 Adopts the bracket winner if a hypothesis beats the baseline; otherwise rolls back. Loops until convergence (2 rollbacks in a row), budget cap, or round cap.
 
@@ -96,10 +149,10 @@ Adopts the bracket winner if a hypothesis beats the baseline; otherwise rolls ba
 
 ## Architecture
 
-- **Entry-points**: three Claude Code skills, all top-level.
-- **Orchestration**: Claude Code Agent Teams. The skill itself is the team lead — runners are dispatched directly at the top level (no nested teams), so every parallel agent appears in the tmux split.
-- **Per-variation runs**: one `runner` teammate per `(hypothesis, run_index)` against an isolated `git clone --shared` sandbox.
-- **Profiles**: declarative YAML files describing a target prompt + how to evaluate it. Adding a new target = adding a new profile, no code changes.
+- **Three top-level skills** — every skill is invocable directly. No nested orchestrators.
+- **Flat agent topology** — the running skill is the team lead; runners are dispatched directly at the top level. Every parallel runner is visible in the Claude Code Agent Teams tmux split. No nested-team workarounds.
+- **Filesystem-first state** — `~/.prompt-eval/runs/<run-id>/` holds the run state and reports; clones are transient under `~/.prompt-eval/clones/<run-id>/` and cleaned per round.
+- **Bundled CLI** — pure logic (profile loading, embeddings, scoring, bracket, judge) lives in `lib/`, shipped as `dist/cli.js`. Skills shell out to it via `scripts/prompt-eval`.
 
 See [`docs/architecture.md`](docs/architecture.md) for the full picture.
 
@@ -107,7 +160,7 @@ See [`docs/architecture.md`](docs/architecture.md) for the full picture.
 
 ## Documentation
 
-- [`references/prompt-best-practices.md`](references/prompt-best-practices.md) — the 7 axes that drive audit scoring, hypothesis generation, and judge rubrics. Single source of truth.
+- [`references/prompt-best-practices.md`](references/prompt-best-practices.md) — the 7 universal axes that drive audit scoring, hypothesis generation, and judge rubrics. **Single source of truth** for what "good" means.
 - [`docs/architecture.md`](docs/architecture.md) — flat skill/runner topology, why we avoid nested teams.
 - [`docs/eval-cascade.md`](docs/eval-cascade.md) — what L1/L2/L3 do, gate thresholds, the bracket rules.
 - [`docs/adding-a-target.md`](docs/adding-a-target.md) — manual profile authoring (use the wizard first; this doc is the fallback).
@@ -127,7 +180,7 @@ bun run typecheck        # strict TS
 bun run build            # rebuild dist/cli.js after editing lib/
 ```
 
-When touching `lib/`, always rebuild `dist/cli.js` and commit it alongside the source change so end users get the updated logic without needing `bun install`.
+When you change anything in `lib/`, always rebuild `dist/cli.js` and commit it alongside the source change so end users get the updated logic without needing `bun install`.
 
 ---
 
