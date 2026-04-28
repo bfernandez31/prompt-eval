@@ -2,31 +2,27 @@
 
 A self-improvement framework for prompts (Claude Code commands, skills, agents).
 
-Given a target prompt and a set of variations ("hypotheses"), runs each variation in isolated `git clone --shared` sandboxes, executes the prompt N times per variation, then evaluates the outputs across three cascading levels:
+Three skills, one pipeline:
 
-1. **Stability** — are the N runs of the same variation consistent? (embedding similarity, cheap)
-2. **Decision consistency** — do the runs reach the same auto-resolved decisions? (structured parsing, free)
-3. **Decision quality** — are the decisions defensible? (LLM-judge pairwise bracket, only run if 1 & 2 pass)
+| Skill | Cost | Purpose |
+|---|---|---|
+| `/prompt-eval-audit` | ~$0.10 | **Static audit** — score a prompt against 7 best-practice axes, list quick wins and A/B candidates |
+| `/prompt-eval-init` | $0 | **Wizard** — generate a profile YAML for a new target in ~6 questions, no manual YAML editing |
+| `/prompt-eval` | $5–50/round | **Empirical eval** — run hypothesis variations through a 3-level cascade (stability → decision-consistency → pairwise quality bracket) |
 
-The cascade short-circuits: a variation that fails stability never pays for the LLM-judge.
+Run them in order. Audit first to harvest the obvious wins for free. Init to scaffold a profile. Eval to A/B-test the genuinely ambiguous changes that need empirical validation.
 
-## Status
+---
 
-MVP shipped — see commit history. All unit tests green.
+## Why this exists
 
-- Design doc: [`docs/specs/2026-04-26-prompt-eval-framework-design.md`](docs/specs/2026-04-26-prompt-eval-framework-design.md)
-- Implementation plan: [`docs/plans/2026-04-26-prompt-eval-mvp.md`](docs/plans/2026-04-26-prompt-eval-mvp.md)
-- Architecture: [`docs/architecture.md`](docs/architecture.md)
-- Eval cascade: [`docs/eval-cascade.md`](docs/eval-cascade.md)
-- Adding a new target: [`docs/adding-a-target.md`](docs/adding-a-target.md)
-- **Prompt best practices** (drives hypothesis generation + judge rubric): [`references/prompt-best-practices.md`](references/prompt-best-practices.md)
+When you write a Claude Code prompt (a slash-command, a skill, an agent), you'll iterate on it dozens of times. Most "improvements" are guesses — you tweak something and hope. This framework gives you two grounded ways to improve:
 
-## Architecture
+1. **Static analysis (cheap, immediate).** Compare the prompt against [`references/prompt-best-practices.md`](references/prompt-best-practices.md) — 7 universal axes (Clarity, Directness, Output Guidelines, Process Steps, Specificity, XML Structure, Examples) condensed from Anthropic's prompt-engineering guidance. Many improvements are obvious from inspection: missing length cap, generic phrasings, unwrapped content blocks, no examples. Audit catches those.
 
-- **Entry point**: a Claude Code skill (`/prompt-eval`)
-- **Orchestration**: Claude Code Agent Teams (1 lead + N hypothesis-evaluators with isolated context)
-- **Per-variation runs**: standard Agent tool sub-agents over `git clone --shared` sandboxes
-- **Profiles**: declarative YAML files describing a target prompt + how to evaluate it. Adding a new target = adding a new profile, no code changes.
+2. **Empirical evaluation (more expensive, more rigorous).** For changes where you can't tell whether a tweak helps or hurts (e.g. "should I cap NEEDS CLARIFICATION at 1 instead of 3?"), run an A/B test. Each variation is executed N times, evaluated for stability and decision-consistency, then survivors face off in a pairwise judge bracket. The winning variation becomes your new baseline.
+
+---
 
 ## Install
 
@@ -45,29 +41,80 @@ Then, in a Claude Code session:
 /plugin install prompt-eval@prompt-eval
 ```
 
-Restart the session. The skill is now invoked as `/prompt-eval <profile>`.
+Restart the session.
 
-The plugin ships a bundled `dist/cli.js` (yaml dependency embedded), so no `bun install` is required to use it. Bun itself is required at runtime to execute `dist/cli.js`.
+The plugin ships a bundled `dist/cli.js` (the `yaml` dependency is embedded), so no `bun install` is needed at use-time. Bun itself is required at runtime to execute `dist/cli.js`.
 
-## Usage
+---
 
-### Bootstrap a new profile (no YAML to write by hand)
+## Typical workflow
 
-```
-/prompt-eval-init ai-board.compare
-```
-
-Interactive wizard that reads the target prompt, auto-detects fields where possible (output path, decision section, rubric criteria), asks you to confirm, and saves a validated `profiles/ai-board.compare.yml`. ~6 questions max.
-
-### Run an evaluation
+### 1. Audit your prompt (~$0.10, ~30 seconds)
 
 ```
-/prompt-eval ai-board.specify                    # semi-auto (default)
-/prompt-eval ai-board.specify --mode auto        # zero intervention
-/prompt-eval ai-board.specify --max-budget 20    # tighter cap
+/prompt-eval-audit /Users/me/repo/.claude-plugin/commands/my-prompt.md
 ```
 
-The skill dispatches an Agent Team to evaluate each hypothesis through the cascade and report back. See [`docs/adding-a-target.md`](docs/adding-a-target.md) for manual profile authoring details.
+Produces an audit report with:
+- Score per axis (1–10)
+- Specific findings with verbatim quotes
+- Ranked recommendations split into:
+  - **Quick fixes** (low-risk, apply directly)
+  - **A/B test candidates** (worth empirical validation)
+- Unified diffs ready to apply
+
+Apply the quick fixes inline. Save the A/B candidates for step 3.
+
+### 2. Bootstrap a profile (~6 questions)
+
+If you don't already have a profile for this prompt:
+
+```
+/prompt-eval-init my-target-name
+```
+
+The wizard reads the prompt, auto-detects what it can (target.repo, invoke pattern, output_artifact glob, decision section, rubric anchors), and asks you to confirm or edit. Saves a validated `profiles/my-target-name.yml`.
+
+### 3. Run the evaluation (~$5–50 per round)
+
+```
+/prompt-eval my-target-name                       # semi-auto (default — checkpoints between rounds)
+/prompt-eval my-target-name --mode auto           # fully autonomous, runs to convergence/budget cap
+/prompt-eval my-target-name --max-budget 20       # tighten the cap on the fly
+/prompt-eval my-target-name --runs 3              # cheap pass (fewer runs per hypothesis)
+```
+
+The skill spawns an Agent Team (1 lead + N runner teammates, each visible in the Claude Code tmux split) and runs the cascade:
+
+1. **L1 stability** — Mistral embeddings, cosine similarity across N runs. Gate: ≥ 0.85.
+2. **L2 decision consistency** — structured-list parsing of decisions. Gate: ≥ 95% Jaccard.
+3. **L3 quality bracket** — pairwise judging (haiku, double-blind) of survivors + baseline. Tied resolves in favour of the baseline.
+
+Adopts the bracket winner if a hypothesis beats the baseline; otherwise rolls back. Loops until convergence (2 rollbacks in a row), budget cap, or round cap.
+
+---
+
+## Architecture
+
+- **Entry-points**: three Claude Code skills, all top-level.
+- **Orchestration**: Claude Code Agent Teams. The skill itself is the team lead — runners are dispatched directly at the top level (no nested teams), so every parallel agent appears in the tmux split.
+- **Per-variation runs**: one `runner` teammate per `(hypothesis, run_index)` against an isolated `git clone --shared` sandbox.
+- **Profiles**: declarative YAML files describing a target prompt + how to evaluate it. Adding a new target = adding a new profile, no code changes.
+
+See [`docs/architecture.md`](docs/architecture.md) for the full picture.
+
+---
+
+## Documentation
+
+- [`references/prompt-best-practices.md`](references/prompt-best-practices.md) — the 7 axes that drive audit scoring, hypothesis generation, and judge rubrics. Single source of truth.
+- [`docs/architecture.md`](docs/architecture.md) — flat skill/runner topology, why we avoid nested teams.
+- [`docs/eval-cascade.md`](docs/eval-cascade.md) — what L1/L2/L3 do, gate thresholds, the bracket rules.
+- [`docs/adding-a-target.md`](docs/adding-a-target.md) — manual profile authoring (use the wizard first; this doc is the fallback).
+- [`docs/specs/2026-04-26-prompt-eval-framework-design.md`](docs/specs/2026-04-26-prompt-eval-framework-design.md) — original design doc.
+- [`docs/plans/2026-04-26-prompt-eval-mvp.md`](docs/plans/2026-04-26-prompt-eval-mvp.md) — implementation plan for the MVP.
+
+---
 
 ## Contributing / Dev Workflow
 
@@ -75,24 +122,33 @@ The skill dispatches an Agent Team to evaluate each hypothesis through the casca
 git clone https://github.com/bfernandez31/prompt-eval
 cd prompt-eval
 bun install              # only needed for development
-bun test                 # 44 unit tests
+bun test                 # 45 unit tests
 bun run typecheck        # strict TS
 bun run build            # rebuild dist/cli.js after editing lib/
 ```
 
-When touching `lib/`, always rebuild `dist/cli.js` and commit it alongside the source change so end users get the updated logic without `bun install`.
+When touching `lib/`, always rebuild `dist/cli.js` and commit it alongside the source change so end users get the updated logic without needing `bun install`.
+
+---
 
 ## Roadmap
 
-- [x] Design doc
-- [x] Plugin scaffolding (`.claude-plugin/`, skill, agent roles)
-- [x] First profile: `ai-board.specify.yml`
-- [x] L1 stability evaluator (embeddings)
-- [x] L2 decision consistency parser
-- [x] L3 LLM-judge bracket
-- [x] Clone lifecycle management
-- [x] Round + final report renderers
-- [ ] End-to-end smoke run on `ai-board.specify`
-- [ ] `--mode auto` end-to-end testing
+- [x] Design doc + implementation plan
+- [x] Plugin scaffolding, skill + agent roles, MVP cascade
+- [x] L1 stability (Mistral embeddings), L2 decision consistency, L3 pairwise bracket
+- [x] Profile schema + wizard (`/prompt-eval-init`)
+- [x] Static audit (`/prompt-eval-audit`)
+- [x] Best-practice axes baked into hypothesis generation + judge rubric
+- [x] Flat agent topology (every runner visible in tmux)
+- [x] Streaming runner output (no more watchdog stalls)
+- [ ] End-to-end smoke run validated on `ai-board.specify`
+- [ ] `--mode auto` exhaustively tested over multiple rounds
 - [ ] `prompt-eval resume` / `prompt-eval clean` CLI subcommands
-- [ ] Additional profiles: `compare`, `review`, ...
+- [ ] Additional ai-board profiles: `compare`, `review`, ...
+- [ ] Audit → eval pipeline plumbing (auto-import A/B candidates as `initial_hypotheses`)
+
+---
+
+## Licence
+
+MIT — see [`LICENSE`](LICENSE).
