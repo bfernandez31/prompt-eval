@@ -151,8 +151,29 @@ Adopts the bracket winner if a hypothesis beats the baseline; otherwise rolls ba
 
 - **Three top-level skills** — every skill is invocable directly. No nested orchestrators.
 - **Flat agent topology** — the running skill is the team lead; runners are dispatched directly at the top level. Every parallel runner is visible in the Claude Code Agent Teams tmux split. No nested-team workarounds.
-- **Filesystem-first state** — `~/.prompt-eval/runs/<run-id>/` holds the run state and reports; clones are transient under `~/.prompt-eval/clones/<run-id>/` and cleaned per round.
+- **Filesystem-first state** — everything the framework generates lives under `~/.prompt-eval/`, never inside the plugin install directory:
+  - `~/.prompt-eval/runs/<run-id>/` — eval-run.yml state, per-round reports, decisions
+  - `~/.prompt-eval/clones/<run-id>/` — transient `git clone --shared` sandboxes (cleaned per round)
+  - `~/.prompt-eval/audits/` — audit reports from `/prompt-eval-audit`
 - **Bundled CLI** — pure logic (profile loading, embeddings, scoring, bracket, judge) lives in `lib/`, shipped as `dist/cli.js`. Skills shell out to it via `scripts/prompt-eval`.
+
+### Optional: allowlist `~/.prompt-eval/` to avoid permission prompts
+
+By default Claude Code prompts on every Write/Bash to a path it doesn't recognise. Since the framework writes only under `~/.prompt-eval/`, you can authorise it once for all by adding to your `~/.claude/settings.json`:
+
+```json
+{
+  "permissions": {
+    "allow": [
+      "Write(~/.prompt-eval/**)",
+      "Bash(mkdir -p ~/.prompt-eval/**)",
+      "Bash(rm -rf ~/.prompt-eval/**)"
+    ]
+  }
+}
+```
+
+Without this, you'll see a permission prompt on each new audit / run (still safe — it just costs a click).
 
 See [`docs/architecture.md`](docs/architecture.md) for the full picture.
 

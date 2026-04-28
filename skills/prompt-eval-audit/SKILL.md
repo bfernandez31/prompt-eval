@@ -170,8 +170,10 @@ Run audit FIRST so the empirical budget is spent on the changes that actually ne
 
 ## Step 6 — Save the report
 
+The audit report goes under the user's home directory, **not** under `$plugin_root`. The plugin install dir is read-only by convention — writing into it triggers a Claude Code permission prompt on every audit. Instead, mirror the convention used for runs/clones:
+
 ```bash
-audit_dir="$plugin_root/audits"
+audit_dir="$HOME/.prompt-eval/audits"
 mkdir -p "$audit_dir"
 ts="$(date -u +%Y%m%d-%H%M%S)"
 basename="$(basename '<absolute-path-to-prompt>' .md)"
@@ -179,7 +181,7 @@ report_path="$audit_dir/$basename-$ts.md"
 # Write the composed report to $report_path
 ```
 
-The `audits/` directory is gitignored (already covered by the framework's `.eval-runs/` style ignore — add `audits/` to `.gitignore` if not already there).
+Users who want zero permission prompts ever can add `Write(~/.prompt-eval/**)` and `Bash(mkdir -p ~/.prompt-eval/**)` to their `~/.claude/settings.json` permissions allowlist — same allowlist that benefits `runs/` and `clones/`.
 
 ## Step 7 — Final output to user
 
