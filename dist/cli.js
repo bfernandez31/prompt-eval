@@ -312,7 +312,13 @@ async function doubleBlindVerdict(specA, specB, judge) {
 import { spawn as spawn3 } from "child_process";
 async function runHeadless(args) {
   const claude = args.claudePath ?? "claude";
-  const argv = ["--print", "--output-format", "json", `${args.invoke} ${args.payload}`];
+  const argv = [
+    "--print",
+    "--output-format",
+    "json",
+    "--dangerously-skip-permissions",
+    `${args.invoke} ${args.payload}`
+  ];
   const child = spawn3(claude, argv, { cwd: args.cwd });
   let stdout = "";
   let stderr = "";
