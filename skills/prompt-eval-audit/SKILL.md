@@ -30,7 +30,7 @@ plugin_root="$(cd "$(dirname "$(realpath ./skills/prompt-eval-audit/SKILL.md)")/
 
 1. Read the prompt file at `<absolute-path-to-prompt>` via the Read tool.
 2. Read `<plugin_root>/references/prompt-best-practices.md` to ground the analysis. The 7 axes + heuristics defined there are your evaluation framework.
-3. If `--profile <name>` was passed: load `<plugin_root>/profiles/<name>.yml` and extract `eval.level3_quality.rubric`. Pull out target-specific bullet criteria (the lines under `# Target-specific (...)` if structured that way) for use in step 4.
+3. If `--profile <name>` was passed: resolve the profile in priority order — first `$HOME/.prompt-eval/profiles/<name>.yml`, then `$plugin_root/profiles/<name>.yml` (the latter holds built-in profiles like `ai-board.specify`). Load it and extract `eval.level3_quality.rubric`. Pull out target-specific bullet criteria (the lines under `# Target-specific (...)` if structured that way) for use in step 4.
 
 ## Step 2 — Score each axis (1-10)
 

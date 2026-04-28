@@ -35,10 +35,25 @@ plugin_root="$(cd "$(dirname "$(realpath ./skills/prompt-eval/SKILL.md)")/../.."
 
 The CLI lives at `$plugin_root/scripts/prompt-eval`. The first profile lives at `$plugin_root/profiles/<profile-name>.yml`.
 
-## 1.2 Load and validate the profile
+## 1.2 Resolve and load the profile
+
+Profiles can live in two locations. Resolve in this priority order:
+
+1. **`$HOME/.prompt-eval/profiles/<profile-name>.yml`** — user profiles (created by `/prompt-eval-init`, persistent across plugin updates).
+2. **`$plugin_root/profiles/<profile-name>.yml`** — built-in profiles shipped with the plugin (e.g. `ai-board.specify` as a starting example).
 
 ```bash
-bun -e "import('$plugin_root/lib/profile-loader.ts').then(m => m.loadProfile('$plugin_root/profiles/<profile-name>.yml')).then(p => console.log(JSON.stringify(p)))"
+profile_path="$HOME/.prompt-eval/profiles/<profile-name>.yml"
+[ -f "$profile_path" ] || profile_path="$plugin_root/profiles/<profile-name>.yml"
+[ -f "$profile_path" ] || { echo "Profile <profile-name> not found in either ~/.prompt-eval/profiles/ or $plugin_root/profiles/"; exit 1; }
+```
+
+A user profile with the same name as a built-in **overrides** the built-in — useful for forking the bundled `ai-board.specify` profile to your own variant without touching the plugin.
+
+Then load and validate:
+
+```bash
+bun -e "import('$plugin_root/lib/profile-loader.ts').then(m => m.loadProfile('$profile_path')).then(p => console.log(JSON.stringify(p)))"
 ```
 
 If `--mode auto` is in effect (after CLI override), require `limits.max_rounds > 0` AND `limits.max_budget_usd > 0`. Otherwise abort with: `"auto mode requires positive max_rounds and max_budget_usd in profile.limits"`.

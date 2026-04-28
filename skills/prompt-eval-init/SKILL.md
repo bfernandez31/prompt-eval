@@ -174,6 +174,14 @@ If `mode == auto`: also confirm budget and rounds are positive (mandatory in aut
 
 ## Step 10 — Compose the YAML
 
+The new profile is saved in the user's stable home directory, **not** under `$plugin_root` (which is read-only by convention and gets wiped on plugin updates). Mirror the same `~/.prompt-eval/` layout used for runs, clones, and audits.
+
+```bash
+profiles_dir="$HOME/.prompt-eval/profiles"
+mkdir -p "$profiles_dir"
+output_path="$profiles_dir/<new-profile-name>.yml"
+```
+
 Build the profile object in memory:
 
 ```ts
@@ -206,7 +214,7 @@ const obj = $(cat <<'EOF'
 EOF
 );
 process.stdout.write(yaml.stringify(obj, { lineWidth: 0 }));
-" > "$plugin_root/profiles/<new-profile-name>.yml"
+" > "$output_path"
 ```
 
 The `lineWidth: 0` is critical — without it, the auto-generated rubric (multi-line) gets folded and corrupts.
@@ -214,7 +222,7 @@ The `lineWidth: 0` is critical — without it, the auto-generated rubric (multi-
 ## Step 11 — Validate with the profile loader
 
 ```bash
-bun -e "import('$plugin_root/lib/profile-loader.ts').then(m => m.loadProfile('$plugin_root/profiles/<new-profile-name>.yml')).then(p => console.log('OK:', p.name)).catch(e => { process.stderr.write(e.message + '\n'); process.exit(1); })"
+bun -e "import('$plugin_root/lib/profile-loader.ts').then(m => m.loadProfile('$output_path')).then(p => console.log('OK:', p.name)).catch(e => { process.stderr.write(e.message + '\n'); process.exit(1); })"
 ```
 
 If validation fails, surface the loader's error to the user verbatim and offer to either:
@@ -226,15 +234,16 @@ If validation fails, surface the loader's error to the user verbatim and offer t
 Print:
 
 ```
-✓ Profile saved at <plugin_root>/profiles/<new-profile-name>.yml
+✓ Profile saved at $output_path
 
 Next steps:
   /prompt-eval <new-profile-name>                          # interactive (semi-auto)
   /prompt-eval <new-profile-name> --mode auto              # fully autonomous
   /prompt-eval <new-profile-name> --max-budget 20          # tighter cap
 
-To re-tune the profile later, edit the YAML directly. Re-validate with:
-  bun -e "import('<plugin_root>/lib/profile-loader.ts').then(m => m.loadProfile('<path>')).then(p => console.log('OK'))"
+The profile lives in your stable home directory and survives plugin
+updates. To re-tune it later, edit the YAML directly. Re-validate with:
+  bun -e "import('<plugin_root>/lib/profile-loader.ts').then(m => m.loadProfile('$output_path')).then(p => console.log('OK'))"
 ```
 
 Return.

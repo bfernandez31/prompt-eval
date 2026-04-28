@@ -12,7 +12,14 @@ This plugin gives you both, plus a wizard so you don't have to write any YAML by
 
 ## What is a profile?
 
-A **profile** is a small YAML file under `profiles/` that describes one prompt you want to evaluate. Think of it as the per-target config: where the prompt lives, how to invoke it, what a representative input looks like, where its output lands, how to grade competing variations.
+A **profile** is a small YAML file that describes one prompt you want to evaluate. Think of it as the per-target config: where the prompt lives, how to invoke it, what a representative input looks like, where its output lands, how to grade competing variations.
+
+Profiles can live in two places, resolved in this order:
+
+1. `~/.prompt-eval/profiles/<name>.yml` — your user profiles, persistent across plugin updates. This is where the wizard saves new profiles.
+2. `<plugin>/profiles/<name>.yml` — built-in profiles bundled with the plugin (e.g. `ai-board.specify` as a starting example).
+
+A user profile with the same name as a built-in overrides it — useful for forking a bundled example to your own variant without touching the plugin.
 
 Concretely, a profile holds:
 
@@ -152,6 +159,7 @@ Adopts the bracket winner if a hypothesis beats the baseline; otherwise rolls ba
 - **Three top-level skills** — every skill is invocable directly. No nested orchestrators.
 - **Flat agent topology** — the running skill is the team lead; runners are dispatched directly at the top level. Every parallel runner is visible in the Claude Code Agent Teams tmux split. No nested-team workarounds.
 - **Filesystem-first state** — everything the framework generates lives under `~/.prompt-eval/`, never inside the plugin install directory:
+  - `~/.prompt-eval/profiles/<name>.yml` — user profiles (overrides built-in profiles of the same name)
   - `~/.prompt-eval/runs/<run-id>/` — eval-run.yml state, per-round reports, decisions
   - `~/.prompt-eval/clones/<run-id>/` — transient `git clone --shared` sandboxes (cleaned per round)
   - `~/.prompt-eval/audits/` — audit reports from `/prompt-eval-audit`
