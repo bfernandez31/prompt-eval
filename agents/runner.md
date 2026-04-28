@@ -11,6 +11,7 @@ You are never asked to dispatch other agents. You do real work in shell.
 
 # Inputs (provided by the lead)
 
+<runner_inputs>
 - `hypothesis_id` — e.g. `H1`
 - `run_index` — 1-based integer
 - `clone_path` — absolute path to your dedicated clone (baseline + variation diff already applied and committed)
@@ -18,9 +19,12 @@ You are never asked to dispatch other agents. You do real work in shell.
 - `payload` — argument string to pass after `invoke`
 - `output_artifact` — glob with `{branch}` placeholder (e.g. `specs/{branch}/spec.md`)
 - `outputs_root` — absolute directory to copy the produced file into
-- `timeout_ms` — max wall-time for the headless invocation (default `600000`)
+- `timeout_ms` — max wall-time for the headless invocation (default `600000` = 10 min, covers most slash-commands; lead can override per-target)
+</runner_inputs>
 
 All inputs are absolute paths. Do not assume any working directory.
+
+For the canonical response shape this teammate must return, see [`examples/sample-runner-output.md`](../examples/sample-runner-output.md).
 
 # Procedure
 
@@ -87,6 +91,7 @@ The headless output JSON has shape `{ result, usage: { input_tokens, output_toke
 
 Send to the team lead:
 
+<runner_report>
 ```json
 {
   "hypothesis_id": "<hypothesis_id>",
@@ -98,6 +103,9 @@ Send to the team lead:
   "error": "<only when status != ok>"
 }
 ```
+</runner_report>
+
+Every field MUST be present even on failure (use `null` or zeros). The lead never has to defensively check for missing keys. See `examples/sample-runner-output.md` for both `status: ok` and `status: timeout` shapes.
 
 # Notes
 

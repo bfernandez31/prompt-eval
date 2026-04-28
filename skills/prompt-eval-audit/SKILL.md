@@ -18,6 +18,8 @@ The optional `--profile <name>` flag loads `<plugin_root>/profiles/<name>.yml` t
 
 Produce a deterministic audit report in one pass. **No runs, no clones, no money burned.** Just static analysis of the prompt text against `<plugin_root>/references/prompt-best-practices.md`.
 
+For a complete walked-through example of an ideal audit (target prompt + per-axis scoring + quick fixes + A/B candidates), see [`examples/sample-audit-report.md`](../../examples/sample-audit-report.md).
+
 # Procedure
 
 ## Step 0 — Resolve `plugin_root`
@@ -29,8 +31,11 @@ plugin_root="$(cd "$(dirname "$(realpath ./skills/prompt-eval-audit/SKILL.md)")/
 ## Step 1 — Read inputs
 
 1. Read the prompt file at `<absolute-path-to-prompt>` via the Read tool.
-2. Read `<plugin_root>/references/prompt-best-practices.md` to ground the analysis. The 7 axes + heuristics defined there are your evaluation framework.
+   - **Robustness fallback:** if the path doesn't exist, abort with: `"audit target not found: <path>. Pass an absolute path to a markdown file."`
+   - If the file is empty (`0` bytes) or contains no markdown headings: abort with `"audit target appears empty or non-markdown — nothing to score."`
+2. Read `<plugin_root>/references/prompt-best-practices.md` to ground the analysis. The 9 axes + heuristics defined there are your evaluation framework.
 3. If `--profile <name>` was passed: resolve the profile in priority order — first `$HOME/.prompt-eval/profiles/<name>.yml`, then `$plugin_root/profiles/<name>.yml` (the latter holds built-in profiles like `ai-board.specify`). Load it and extract `eval.level3_quality.rubric`. Pull out target-specific bullet criteria (the lines under `# Target-specific (...)` if structured that way) for use in step 4.
+   - **Robustness fallback:** if `--profile` was passed but the profile is not found in either location, **warn but do not abort** — proceed with the 9 universal axes only and tell the user the target-specific layer was skipped.
 
 ## Step 2 — Score each axis (1-10)
 
@@ -73,7 +78,7 @@ Check: does the prompt have numeric parameters (weights, thresholds, max counts,
 
 ## Step 4 — Generate ranked recommendations
 
-For each axis scoring **< 7**, generate one recommendation:
+For each axis scoring **< 7**, generate one recommendation. (Rationale for the `< 7` threshold: an axis at 7+ is "good enough that a forced fix would be premature optimisation". Below 7, the gap is material enough that proposing a fix has positive expected value.)
 
 ```
 ### Recommendation N: [Axis K: <name>] <short title>

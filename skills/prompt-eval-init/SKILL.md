@@ -17,6 +17,8 @@ The `<new-profile-name>` is the filename you'll pass later to `/prompt-eval`. It
 
 Produce a valid `profiles/<new-profile-name>.yml` in ≤6 user interactions. Auto-detect everything you can from the target prompt; ask only for what you genuinely cannot infer.
 
+For a complete walked-through example of an ideal wizard run (prompt + auto-detection + each user turn + final saved profile), see [`examples/sample-init-wizard.md`](../../examples/sample-init-wizard.md).
+
 # Procedure
 
 ## Step 0 — Resolve plugin_root
@@ -71,11 +73,13 @@ Loop until you get a tracked path.
 
 If the prompt lives at one of these patterns, propose the corresponding slash-command:
 
+<invoke_resolution_table>
 | File location | Suggested invoke |
 |---|---|
 | `<repo>/.claude/commands/<x>.md` | `/<x>` |
 | `<repo>/.claude-plugin/commands/<x>.md` | `/<x>` |
 | `<repo>/skills/<x>/SKILL.md` | "use the <x> skill" |
+</invoke_resolution_table>
 
 Show the suggestion and let the user accept or override. Save as `target.invoke`.
 
@@ -159,18 +163,20 @@ Show it to the user. They can accept, edit, or rewrite. Save into `eval.level3_q
 
 ## Step 9 — Limits + mode (single batched question)
 
-Ask once with sensible defaults pre-filled:
+Ask once with sensible defaults pre-filled. Each default is justified:
 
-> "Final settings — accept defaults or override:
->
-> - runs_per_hypothesis: 3
-> - concurrency_per_hypothesis: 2
-> - max_hypotheses_per_round: 5
-> - max_rounds: 5
-> - max_budget_usd: 50
-> - mode: semi-auto  (alternatives: auto)
->
-> Press enter to accept, or list the overrides (e.g. `runs=5 mode=auto`)."
+<default_settings>
+| Setting | Default | Rationale |
+|---|---|---|
+| `runs_per_hypothesis` | `3` | Minimum for a meaningful L1 stability score (≥2 pairs of comparisons) without 5x-ing the cost. |
+| `concurrency_per_hypothesis` | `2` | Caps Anthropic API rate-limit pressure. Halves wall-time vs. sequential without saturating the rate limiter. |
+| `max_hypotheses_per_round` | `5` | At 3 runs each + 1 baseline that's ≤16 agents per round — fits the Agent Teams hard cap. |
+| `max_rounds` | `5` | Convergence usually fires before round 5 in practice; this is a safety stop. |
+| `max_budget_usd` | `50` | Roughly 3× the cost of a single 3-hyp/3-run round on a Sonnet-class target. Tighten with `--max-budget` per-run. |
+| `mode` | `semi-auto` | Default keeps the user in the loop. `auto` is opt-in for hands-off runs. |
+</default_settings>
+
+> "Final settings — accept defaults or override (e.g. `runs=5 mode=auto`):"
 
 Parse their reply, fill the values into the profile.
 

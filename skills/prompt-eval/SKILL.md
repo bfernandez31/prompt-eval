@@ -145,18 +145,23 @@ printf '%s' "$DIFF_CONTENT" > "$hk_dir/variation.diff"
 printf '%s' "$DESCRIPTION" > "$hk_dir/description.md"
 ```
 
-Then persist metadata only into `eval-run.yml.hypotheses_round_1`. Each entry is:
+Then persist metadata only into `eval-run.yml.hypotheses_round_1`. Each entry follows this schema:
 
+<run_state_schema>
 ```yaml
 hypotheses_round_1:
   - id: H1
     description: "(short label, single line)"
     diff_path: "rounds/round-1/hypotheses/H1/variation.diff"  # relative to $run_dir
+    source: "audit:<basename>" | "generated"                  # provenance for traceability
   - id: H2
     ...
 ```
+</run_state_schema>
 
 If you must hand-write YAML for this (rather than going through `lib/state.ts writeState`), use the `yaml` package with `{ lineWidth: 0 }` to disable folding.
+
+For a complete walked-through example of one round (hypotheses → runs → bracket → decision → report), see [`examples/sample-eval-round.md`](../../examples/sample-eval-round.md).
 
 # Phase 2 — Per Round (loop)
 
@@ -224,18 +229,21 @@ For each `(Hk, k)`:
 - `subagent_type`: `runner`
 - `name`: `runner-<Hk>-<k>` (so they're addressable in tmux split)
 - `team_name`: `prompt-eval-round-<N>`
-- `prompt`: a focused prompt that gives the runner exactly its inputs (see `agents/runner.md` for the contract):
-  - hypothesis_id, run_index
-  - clone_path = `$run_clone`
-  - invoke = `<profile.target.invoke>`
-  - payload = `<profile.test_input.payload>`
-  - output_artifact = `<profile.eval.level1_stability.output_artifact>`
-  - outputs_root = `$round_dir/hypotheses/$Hk/outputs`
-  - timeout_ms (use 600000 unless profile overrides)
+- `prompt`: a focused prompt that gives the runner exactly its inputs (see `agents/runner.md` for the contract, and `examples/sample-runner-output.md` for the response shape):
 
-**Concurrency cap**: dispatch at most `eval.concurrency_per_hypothesis × number_of_qualified_hypotheses` runners simultaneously, but never more than 15 (Agent Teams limit minus a safety margin). If your N×M exceeds 15, dispatch in waves.
+<runner_inputs>
+- hypothesis_id, run_index
+- clone_path = `$run_clone`
+- invoke = `<profile.target.invoke>`
+- payload = `<profile.test_input.payload>`
+- output_artifact = `<profile.eval.level1_stability.output_artifact>`
+- outputs_root = `$round_dir/hypotheses/$Hk/outputs`
+- timeout_ms = `600000` (default — 10 min wall-time; covers most slash-commands. Profiles may override per target.)
+</runner_inputs>
 
-Wait for all runner teammates to return. Each returns a JSON status (see runner.md §Step 8). Persist these into `$round_dir/hypotheses/$Hk/eval/runs.json`.
+**Concurrency cap**: dispatch at most `eval.concurrency_per_hypothesis × number_of_qualified_hypotheses` runners simultaneously, but never more than `15` runners total. (Rationale: Claude Code Agent Teams hard cap is 16 members per team — leave 1 slot for the lead itself.) If your N×M exceeds `15`, dispatch in waves: first 15, await, then the remainder.
+
+Wait for all runner teammates to return. Each returns a JSON status (see `agents/runner.md` §Step 8 and the canonical example at `examples/sample-runner-output.md`). Persist these into `$round_dir/hypotheses/$Hk/eval/runs.json`.
 
 After all runners return, increment `state.budget_consumed_usd` by the sum of all returned `usage.cost_usd` and persist via `lib/state.ts addBudget`. **Check budget gate**: if exceeded, finalise the round as-is (no more dispatches in subsequent rounds).
 
@@ -243,7 +251,7 @@ After all runners return, increment `state.budget_consumed_usd` by the sum of al
 
 For each hypothesis `Hk`:
 
-If ≥3 of M runs returned a non-`ok` status, mark `Hk` as `rejected:unreliable`. Skip L1/L2.
+If `≥3` of M runs returned a non-`ok` status, mark `Hk` as `rejected:unreliable`. Skip L1/L2. (Rationale for the `3` threshold: with the default `M=3`, this means "the entire batch failed" — no signal possible. With higher M, a 3-failure floor still preserves enough surviving runs for a meaningful L1.)
 
 Otherwise:
 
@@ -323,7 +331,7 @@ bun -e "import('$plugin_root/lib/state.ts').then(m => m.bumpRound('$run_dir'))"
 
 In order, the first that fires wins:
 
-1. **Convergence** — if the last 2 rounds both ended in `rollback`
+1. **Convergence** — if the last `2` rounds both ended in `rollback`. (Rationale: a single rollback can be noise; two in a row is a clear plateau signal.)
 2. **Budget** — if `state.budget_consumed_usd >= profile.limits.max_budget_usd`
 3. **Round cap** — if `state.rounds_completed >= profile.limits.max_rounds`
 4. **User stop** (semi-auto only) — explicit user "stop" at the round checkpoint

@@ -1,0 +1,95 @@
+# Sample Audit Report
+
+A walked-through example of what `/prompt-eval-audit` produces on a fictional target prompt. Use this as the reference shape for what an ideal audit looks like.
+
+The example below audits a short fictional prompt that has both classic best-practice gaps (no examples, no XML structure) and a tuning gap (magic threshold).
+
+---
+
+<sample_input>
+Target prompt being audited (`acme.summarise.md`):
+
+```markdown
+---
+description: Summarise an article into a 1-paragraph abstract.
+---
+
+You are a summariser. Read the article and write a summary.
+
+Try to be helpful and concise. The summary should be good and capture the main idea.
+
+If the article is long, you can use 200 words. If it is short, fewer is fine.
+
+Output the summary directly.
+```
+</sample_input>
+
+<ideal_output>
+```markdown
+# Audit: acme.summarise
+
+**Source:** /Users/me/repo/.claude-plugin/commands/acme.summarise.md
+**Audited:** 2026-04-28T12:00:00Z
+**Reference:** references/prompt-best-practices.md (9 axes)
+**Profile:** none
+
+## Score by axis
+
+| Axis | Name | Score | One-line |
+|---|---|---|---|
+| 1 | Clarity | 4/10 | hedge language ("try to", "can use", "is fine") |
+| 2 | Directness | 5/10 | "be helpful and concise" is vague |
+| 3 | Output Guidelines | 3/10 | "200 words" is loose; no format spec |
+| 4 | Process Steps | n/a | task is single-step, axis not applicable |
+| 5 | Specificity | 3/10 | "good", "main idea", "long", "short" — all undefined |
+| 6 | Structure (XML) | 2/10 | no tags around the article-content placeholder |
+| 7 | Examples | 1/10 | zero examples |
+| 8 | Robustness | 2/10 | no behaviour spec for empty article, non-text input |
+| 9 | Parameter Tuning | 4/10 | "200 words" magic number with no rationale |
+
+**Overall:** 3.0/10 — multiple foundational gaps; high upside on a short prompt.
+
+## Quick fixes (apply directly)
+
+### 1. [Axis 1: Clarity] Strip hedge language
+- Affects: lines 5-9
+- Change: replace "Try to be helpful and concise. The summary should be good and capture the main idea. If the article is long, you can use 200 words. If it is short, fewer is fine." with "Write a summary capturing the article's central thesis. Use ≤200 words; aim for ≤120 when the article is under 1000 words."
+- Diff size: ~5 lines
+- Risk: low — same intent, less hedged language.
+
+### 2. [Axis 6: Structure] Wrap the article placeholder in `<article>` tags
+- Affects: line 4 (after "You are a summariser. Read the article")
+- Change: add explicit `<article>{{ARTICLE}}</article>` placeholder so the model sees a clear content boundary.
+- Diff size: ~3 lines
+- Risk: low — purely structural improvement.
+
+## A/B test candidates (validate via /prompt-eval)
+
+### 1. [Axis 7: Examples] Add a worked one-shot example
+- Affects: end of file
+- Change: add an `<example>` block with a sample article + ideal summary + commentary on why the summary works.
+- Why it needs testing: examples can shift output style/length/voice — empirical pass tells you whether the new pattern beats the current implicit one.
+- Expected impact: high
+
+### 2. [Axis 9: Parameter Tuning] Halve the word cap from 200 → 100
+- Affects: line containing the word limit
+- Change: `≤100 words` instead of `≤200`.
+- Why it needs testing: empirical pass will tell whether tighter is better quality or strips too much.
+- Expected impact: medium
+
+## Findings (verbatim)
+
+### Axis 1 — Clarity (4/10)
+> "Try to be helpful and concise. The summary should be good and capture the main idea."
+
+### Axis 5 — Specificity (3/10)
+> "If the article is long, you can use 200 words. If it is short, fewer is fine."
+```
+
+This example is well-shaped because:
+- Every axis has a numeric score with a one-line reason
+- Quick fixes are concrete (specific lines, specific replacement, specific risk)
+- A/B candidates explain *why* empirical testing is needed
+- Findings are verbatim quotes the user can grep for in their source
+- The Process Steps axis is correctly marked `n/a` for a single-step task — don't force-fit
+</ideal_output>
