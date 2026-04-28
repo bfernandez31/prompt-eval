@@ -223,9 +223,24 @@ echo "{\"source\":\"$clones_root/round-$N-$Hk-base\",\"dest\":\"$run_clone\"}" \
 
 ## 2.4 Dispatch ALL runner teammates in parallel
 
-This is the visibility-critical step. Use the **Agent tool with multiple parallel tool calls in a single message**, one teammate per `(Hk, k)`.
+This is the visibility-critical step.
 
-For each `(Hk, k)`:
+### 2.4.0 — Create the team FIRST
+
+Before any `Agent` dispatch, call `TeamCreate` exactly once for this round to instantiate the team that all runners (and the baseline runners) will join. Without this, `Agent` calls referencing `team_name` spawn teammate placeholders with no team attached — they die immediately with `0 tool uses` and produce no work. (Symptom seen in practice: every runner reports "Done" with no output and no usage.)
+
+```
+TeamCreate({
+  name: "prompt-eval-round-<N>",
+  // additional fields per the TeamCreate schema (read it before invoking)
+})
+```
+
+### 2.4.1 — Then dispatch all runners
+
+Use the **Agent tool with multiple parallel tool calls in a single message**, one teammate per `(Hk, k)` — plus the baseline runs (you need 3 runs of the round-N baseline for the bracket judging to have a like-for-like comparison).
+
+For each `(Hk, k)` and each `(baseline, k)`:
 
 - `subagent_type`: `runner`
 - `name`: `runner-<Hk>-<k>` (so they're addressable in tmux split)
@@ -280,7 +295,7 @@ If 0 qualified survivors → `decision: rollback`, skip bracket.
 
 Otherwise:
 
-For each side (baseline + each qualified hypothesis), pick the **centroid run** — the run with the median pairwise similarity to its peers (read from L1's `pair_similarities`). For the baseline side, also run the prompt on the baseline clone to get its centroid spec; OR (cheaper) use the baseline-snapshot file and treat all baseline runs as a single representative if you have it cached.
+For each side (baseline + each qualified hypothesis), pick the **centroid run** — the run with the median pairwise similarity to its peers (read from L1's `pair_similarities`). The baseline must therefore be run `runs_per_hypothesis` times in Phase 2.4 alongside the hypotheses (apples-to-apples comparison; using a single baseline-snapshot vs. M-aggregated hypothesis runs would bias the bracket).
 
 Build participants list `[baseline-centroid, ...qualified-centroids-in-order]`.
 
@@ -308,7 +323,9 @@ bun -e "import('$plugin_root/lib/report.ts').then(m => process.stdout.write(m.re
 
 Write `$round_dir/decision.json` capturing the round's outcome.
 
-## 2.8 Cleanup clones for this round
+## 2.8 Cleanup clones AND the team for this round
+
+Clones:
 
 ```bash
 echo "{\"path\":\"$clones_root/round-$N-baseline\"}" | "$plugin_root/scripts/prompt-eval" remove-clone
@@ -319,6 +336,14 @@ for hk in $hypotheses; do
   done
 done
 ```
+
+Team (the one we created in Step 2.4.0):
+
+```
+TeamDelete({ name: "prompt-eval-round-<N>" })
+```
+
+(Without the delete, dangling teams accumulate across rounds. Symptom: TeamCreate of the next round fails with "team already exists".)
 
 `$run_dir` (state, outputs, reports) is preserved.
 
