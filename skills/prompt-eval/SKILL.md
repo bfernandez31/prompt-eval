@@ -68,9 +68,32 @@ bun -e "import('$plugin_root/lib/state.ts').then(m => m.initState('$run_dir', { 
 
 ## 1.4 Determine round 1 hypotheses
 
-If `profile.initial_hypotheses` is non-empty, use those directly. Persist them under `eval-run.yml.hypotheses_round_1` and proceed to Phase 2.
+Sourcing priority:
 
-Otherwise, **open an interactive loop with the user**:
+### (a) `profile.initial_hypotheses` non-empty
+
+Use them directly. Persist under `eval-run.yml.hypotheses_round_1` and proceed.
+
+### (b) `mode: auto` AND `initial_hypotheses` empty — generate them yourself
+
+**Read `<plugin_root>/references/prompt-best-practices.md` first.** It defines the 5 axes (Clarity, Directness, Output Guidelines, Process Steps, Specificity) you must use as your generation framework, along with concrete heuristics:
+
+- Each hypothesis targets exactly **one** axis (so the bracket can attribute signal)
+- Prefer additions over deletions
+- Keep diffs small (≤ 10 lines, surgical)
+- Cover multiple axes across the round (don't repeat axes)
+- Inspect the target prompt before guessing — pick axes that match real weaknesses
+- Prefix each description with `[Axis N: <name>]` for traceability
+
+Then:
+1. Read `$run_dir/original-baseline.md` (the target prompt)
+2. Identify weaknesses by axis
+3. Propose 3–5 hypotheses, one per chosen axis
+4. Generate a unified diff for each
+5. Persist as separate files (per the diff persistence rule below) with metadata in `eval-run.yml.hypotheses_round_1`
+6. Proceed to Phase 2 without user intervention
+
+### (c) `mode: semi-auto` AND `initial_hypotheses` empty — interactive loop with the user
 
 > "I'm preparing round 1 for `<profile.name>`. The target prompt is at `<profile.target.prompt_file>` (in `<profile.target.repo>`). Describe your first hypothesis in plain language (e.g. 'tighten the AUTO security keyword bonus from +3 to +2'). I'll generate a unified diff and ask you to confirm before adding it."
 
@@ -286,17 +309,25 @@ bun -e "import('$plugin_root/lib/report.ts').then(m => process.stdout.write(m.re
 
 Present the final report path to the user and return.
 
-## 2.11 Round checkpoint (semi-auto only)
+## 2.11 Round checkpoint and next-round hypotheses
 
-In `mode: semi-auto`, before dispatching round N+1:
+Whatever the mode, the next-round hypotheses MUST be grounded in `<plugin_root>/references/prompt-best-practices.md`. Same rules as Phase 1.4 (b): one axis per hypothesis, additions preferred, small diffs, cover multiple axes, prefix descriptions with `[Axis N: <name>]`.
 
-1. Print the contents of `$round_dir/round-report.md` to the user
-2. Propose 3-5 new hypotheses based on patterns observed (which hypotheses were rejected and why, which won the bracket and why)
+When proposing the next round, read the round report first and pick axes that **haven't been explored yet** (or that were explored but the hypothesis was rejected for a fixable reason — e.g. unstable because the diff was too large; retry with a tighter version).
+
+### `mode: semi-auto`
+
+Before dispatching round N+1:
+
+1. Print `$round_dir/round-report.md` to the user
+2. Propose 3-5 new hypotheses (one per axis, see best-practices)
 3. Ask the user to approve / edit / drop / add. Wait for confirmation
 4. Persist into `eval-run.yml.hypotheses_round_$((N+1))`
 5. Loop
 
-In `mode: auto`, skip the checkpoint, propose hypotheses programmatically and proceed.
+### `mode: auto`
+
+Skip the checkpoint. Propose 3-5 new hypotheses (still one per axis), record their description + diff_path in `eval-run.yml.hypotheses_round_$((N+1))`, and proceed.
 
 # Notes
 

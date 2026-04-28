@@ -127,15 +127,28 @@ If yes, set `eval.level2_decisions: { skip: true }`. Otherwise loop on user-prov
 
 ## Step 8 — Auto-generate `rubric`
 
-Mine the prompt for sections like `Quality Standards`, `Guidelines`, `For AI Generation`, `Section Requirements`, etc. Extract 3-6 concrete criteria. Compose a rubric in this shape:
+**Read `<plugin_root>/references/prompt-best-practices.md` first.** Its "Judge Rubric Default Criteria" section gives the foundation rubric anchored on the five universal axes (Clarity, Directness, Output Guidelines, Process Steps, Specificity).
+
+Then mine the target prompt for sections like `Quality Standards`, `Guidelines`, `For AI Generation`, `Section Requirements` and extract any **target-specific** criteria (e.g. for `ai-board.specify`: "right dosage of [NEEDS CLARIFICATION] markers", "absence of implementation details").
+
+Compose the rubric by combining both layers:
 
 ```
 Compare two outputs (A and B) generated from the same input by two variations of the source prompt.
-Evaluate on:
-1. <criterion 1, paraphrased from prompt's quality standards>
-2. <criterion 2, ...>
-3. <criterion 3, ...>
-Decide: "A" | "B" | "tied". One-line rationale.
+
+# Universal axes
+- Clarity: no vague preamble, no hedge language
+- Directness: instructions and action verbs, not open questions
+- Output guidelines: explicit length / structure / required-element constraints met
+- Process steps: when the task is multi-faceted, did the steps actually constrain useful work
+- Specificity: concrete bounds rather than generic phrasing
+
+# Target-specific (from this prompt's quality standards)
+- <criterion 1 extracted from prompt>
+- <criterion 2, ...>
+- <criterion 3, ...>
+
+Decide: "A" | "B" | "tied". One-line rationale citing the axis or criterion where the winner most clearly beats the loser.
 ```
 
 Show it to the user. They can accept, edit, or rewrite. Save into `eval.level3_quality.rubric` as a YAML literal block (`rubric: |`).

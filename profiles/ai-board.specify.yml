@@ -38,13 +38,22 @@ eval:
     double_blind: true
     rubric: |
       Compare two specs (A and B) generated from the same feature description.
-      Evaluate on:
-      1. Relevance and defensibility of auto-resolved decisions.
-      2. Coverage of user scenarios (primary + edge cases).
-      3. Testability of functional requirements.
-      4. Absence of implementation details (no tech stack, no frameworks).
-      5. Right dosage of [NEEDS CLARIFICATION] markers (max 3, only critical).
-      Decide: "A" | "B" | "tied". One-line rationale.
+
+      # Universal axes (apply to any prompt — see references/prompt-best-practices.md)
+      - Clarity: no vague preamble, no hedge language
+      - Directness: imperative instructions rather than open-ended questions
+      - Output guidelines: explicit constraints on length, structure, required elements
+      - Process steps: when complex, numbered steps that meaningfully constrain the work
+      - Specificity: concrete bounds rather than generic phrasing
+
+      # Target-specific (ai-board.specify)
+      - Relevance and defensibility of auto-resolved decisions
+      - Coverage of user scenarios (primary + edge cases)
+      - Testability of functional requirements
+      - Absence of implementation details (no tech stack, no frameworks)
+      - Right dosage of [NEEDS CLARIFICATION] markers (max 3, only critical)
+
+      Decide: "A" | "B" | "tied". One-line rationale citing the strongest axis where the winner beats the loser.
 
 limits:
   max_rounds: 5

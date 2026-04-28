@@ -19,6 +19,7 @@ MVP shipped — see commit history. All unit tests green.
 - Architecture: [`docs/architecture.md`](docs/architecture.md)
 - Eval cascade: [`docs/eval-cascade.md`](docs/eval-cascade.md)
 - Adding a new target: [`docs/adding-a-target.md`](docs/adding-a-target.md)
+- **Prompt best practices** (drives hypothesis generation + judge rubric): [`references/prompt-best-practices.md`](references/prompt-best-practices.md)
 
 ## Architecture
 
