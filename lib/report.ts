@@ -25,6 +25,11 @@ export interface RoundData {
   bracket_matches: RoundMatch[];
   decision: "adopt" | "rollback";
   total_usd: number;
+  // Optional cost breakdown — when present, the report shows runners vs. judge
+  // separately so the user knows where the money went. Both default to undefined
+  // for back-compat with older callers (existing tests + ad-hoc scripts).
+  runner_cost_usd?: number;
+  judge_cost_usd?: number;
 }
 
 export function renderRoundReport(d: RoundData): string {
@@ -60,5 +65,9 @@ export function renderRoundReport(d: RoundData): string {
   lines.push(`## Cost`);
   lines.push("");
   lines.push(`Total this round: $${d.total_usd.toFixed(2)}`);
+  if (d.runner_cost_usd !== undefined && d.judge_cost_usd !== undefined) {
+    lines.push(`  - Runners: $${d.runner_cost_usd.toFixed(2)}`);
+    lines.push(`  - Judge:   $${d.judge_cost_usd.toFixed(2)}`);
+  }
   return lines.join("\n");
 }

@@ -83,9 +83,27 @@ else
 fi
 ```
 
-## Step 7 — Extract usage from the headless output JSON
+## Step 7 — Extract usage from the headless stream-json output
 
-The headless output JSON has shape `{ result, usage: { input_tokens, output_tokens, cost_usd } }`.
+The headless invocation uses `--output-format stream-json --verbose`, so the captured JSON is **one event per line**, not a single JSON object. The cost lives in the final `"type": "result"` event:
+
+```json
+{"type":"system", ...}
+{"type":"assistant", ...}
+{"type":"result", "result":"...", "usage":{"input_tokens":N, "output_tokens":M}, "total_cost_usd":0.018}
+```
+
+To extract the cost, walk the file line-by-line from the bottom and pick the first parseable line whose `type` is `"result"`. The dollar amount is `total_cost_usd` (NOT `usage.cost_usd` — that field doesn't exist in stream-json). Token counts come from the nested `usage` object.
+
+```bash
+# One-liner with jq (handles multi-line stream-json file)
+result_line=$(grep '"type":"result"' "<outputs_root>/run-<run_index>.json" | tail -n1)
+input_tokens=$(echo "$result_line" | jq -r '.usage.input_tokens // 0')
+output_tokens=$(echo "$result_line" | jq -r '.usage.output_tokens // 0')
+cost_usd=$(echo "$result_line" | jq -r '.total_cost_usd // 0')
+```
+
+If no `"type":"result"` line is found, the run did not finish cleanly — set `usage` to all zeros and `status` accordingly.
 
 ## Step 8 — Persist report to disk, THEN SendMessage
 

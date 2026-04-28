@@ -4,6 +4,20 @@ A walked-through example of what one `runner` teammate returns to the team lead 
 
 ---
 
+## Stream-json cost extraction
+
+The captured `.json` is one JSON event per line. Cost is `total_cost_usd` on the final `"type":"result"` event, NOT `usage.cost_usd` (doesn't exist in stream-json).
+
+Extract via the last `"type":"result"` line:
+
+```bash
+result_line=$(grep '"type":"result"' run-2.json | tail -n1)
+echo "$result_line" | jq '.total_cost_usd'   # ← correct
+echo "$result_line" | jq '.usage.cost_usd'   # ← wrong, returns null
+```
+
+---
+
 <sample_input>
 The team lead dispatches the runner with:
 

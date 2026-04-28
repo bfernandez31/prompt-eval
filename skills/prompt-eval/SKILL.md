@@ -285,7 +285,9 @@ Wait for all runner teammates to return. Each returns a JSON status (see `agents
 
 **Resilience to lost SendMessage.** Teammate→lead `SendMessage` is best-effort: in practice some runners' messages don't reach the lead even though the runner did its work. The runner contract therefore requires every runner to write its report to `<outputs_root>/run-<run_index>.report.json` BEFORE calling SendMessage. After the dispatch wave returns, **for every runner whose SendMessage didn't arrive, read its `report.json` from disk** instead. Only treat a runner as truly missing if both the SendMessage and the on-disk report are absent.
 
-After all runners return, increment `state.budget_consumed_usd` by the sum of all returned `usage.cost_usd` and persist via `lib/state.ts addBudget`. **Check budget gate**: if exceeded, finalise the round as-is (no more dispatches in subsequent rounds).
+After all runners return, sum every runner's `usage.cost_usd` into a per-round running total `runner_cost_round_$N`. Also increment `state.budget_consumed_usd` by the same sum via `lib/state.ts addBudget`. **Check budget gate**: if exceeded, finalise the round as-is (no more dispatches in subsequent rounds).
+
+In stream-json mode, the runner's cost is `total_cost_usd` on the final `"type":"result"` event — see `agents/runner.md` §Step 7. `usage.cost_usd` does not exist in stream-json and parses to 0.
 
 ## 2.5 Aggregate L1 + L2 per hypothesis
 
@@ -332,17 +334,24 @@ echo "{\"rubric\":\"<profile.eval.level3_quality.rubric>\",\"specA\":\"<centroid
 
 Returns `{"verdict":"A"|"B"|"tied"}`. Tied resolves in favour of the participant earlier in the list (baseline is always at index 0, so tied always favours baseline).
 
-Persist `$round_dir/bracket.json` with each match record.
+Sum the judge's cost into a per-round running total `judge_cost_round_$N`. Also `addBudget` it to `state.budget_consumed_usd`.
+
+Persist `$round_dir/bracket.json` with each match record (verdict + cost), so the report can show per-match breakdown if needed later.
 
 ## 2.7 Decide
 
 - If bracket winner is `baseline` → **rollback**. `state.baseline_path` unchanged.
 - Else → **adopt**. Update `state.baseline_path` to point at the winning hypothesis's variation file (`$round_dir/hypotheses/<winner>/variation.md` — write that file from the hypothesis-base clone).
 
-Render `$round_dir/round-report.md` using the report renderer:
+Render `$round_dir/round-report.md` using the report renderer. Pass `runner_cost_usd` and `judge_cost_usd` (the per-round running totals tracked above) so the report shows the breakdown:
 
 ```bash
-bun -e "import('$plugin_root/lib/report.ts').then(m => process.stdout.write(m.renderRoundReport(<RoundData JSON>)))" > "$round_dir/round-report.md"
+bun -e "import('$plugin_root/lib/report.ts').then(m => process.stdout.write(m.renderRoundReport({
+  ...<RoundData>,
+  total_usd: <runner_cost_round_N + judge_cost_round_N>,
+  runner_cost_usd: <runner_cost_round_N>,
+  judge_cost_usd: <judge_cost_round_N>
+})))" > "$round_dir/round-report.md"
 ```
 
 Write `$round_dir/decision.json` capturing the round's outcome.
