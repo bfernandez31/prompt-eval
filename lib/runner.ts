@@ -16,14 +16,26 @@ export interface RunHeadlessResult {
   raw: string;
 }
 
+interface StreamResultEvent {
+  type: "result";
+  result?: string;
+  usage?: { input_tokens?: number; output_tokens?: number };
+  total_cost_usd?: number;
+}
+
 export async function runHeadless(args: RunHeadlessArgs): Promise<RunHeadlessResult> {
   const claude = args.claudePath ?? "claude";
+  // --output-format stream-json emits one JSON event per line continuously, which keeps
+  //   parent-process watchdogs (and the orchestrator itself) seeing live activity over
+  //   the long tail of a slash-command invocation. Buffered "json" output looks frozen
+  //   for 60-180s and tripped the orchestrator's stream watchdog on the first run.
+  // --verbose is required by Claude Code when --output-format=stream-json is set.
   // --dangerously-skip-permissions is REQUIRED for headless runs that invoke slash-commands
-  // touching the filesystem (e.g. /ai-board.specify writing specs/<branch>/spec.md). Without it,
-  // child sessions sandbox Bash/Write and the run produces no artifact.
+  //   touching the filesystem (e.g. /ai-board.specify writing specs/<branch>/spec.md).
   const argv = [
     "--print",
-    "--output-format", "json",
+    "--output-format", "stream-json",
+    "--verbose",
     "--dangerously-skip-permissions",
     `${args.invoke} ${args.payload}`,
   ];
@@ -50,18 +62,34 @@ export async function runHeadless(args: RunHeadlessArgs): Promise<RunHeadlessRes
         return;
       }
       try {
-        const parsed = JSON.parse(stdout);
+        // Parse the stream: one JSON event per line. Walk backwards to find the final
+        // "result" event, which carries the aggregated usage and total_cost_usd.
+        const lines = stdout.split("\n").filter((l) => l.trim().length > 0);
+        let resultEvent: StreamResultEvent | null = null;
+        for (let i = lines.length - 1; i >= 0; i--) {
+          const line = lines[i]!;
+          let event: { type?: string };
+          try { event = JSON.parse(line); } catch { continue; }
+          if (event.type === "result") {
+            resultEvent = event as StreamResultEvent;
+            break;
+          }
+        }
+        if (!resultEvent) {
+          reject(new Error(`no 'result' event found in stream output\nSTDOUT (last 500 chars):\n${stdout.slice(-500)}`));
+          return;
+        }
         resolve({
-          result: String(parsed.result ?? ""),
+          result: String(resultEvent.result ?? ""),
           usage: {
-            input_tokens: Number(parsed.usage?.input_tokens ?? 0),
-            output_tokens: Number(parsed.usage?.output_tokens ?? 0),
-            cost_usd: Number(parsed.usage?.cost_usd ?? 0),
+            input_tokens: Number(resultEvent.usage?.input_tokens ?? 0),
+            output_tokens: Number(resultEvent.usage?.output_tokens ?? 0),
+            cost_usd: Number(resultEvent.total_cost_usd ?? 0),
           },
           raw: stdout,
         });
       } catch (e) {
-        reject(new Error(`failed to parse claude JSON output: ${(e as Error).message}\nSTDOUT:\n${stdout}`));
+        reject(new Error(`failed to parse claude stream output: ${(e as Error).message}\nSTDOUT (last 500 chars):\n${stdout.slice(-500)}`));
       }
     });
   });

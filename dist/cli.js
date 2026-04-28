@@ -315,7 +315,8 @@ async function runHeadless(args) {
   const argv = [
     "--print",
     "--output-format",
-    "json",
+    "stream-json",
+    "--verbose",
     "--dangerously-skip-permissions",
     `${args.invoke} ${args.payload}`
   ];
@@ -344,20 +345,41 @@ async function runHeadless(args) {
         return;
       }
       try {
-        const parsed = JSON.parse(stdout);
+        const lines = stdout.split(`
+`).filter((l) => l.trim().length > 0);
+        let resultEvent = null;
+        for (let i = lines.length - 1;i >= 0; i--) {
+          const line = lines[i];
+          let event;
+          try {
+            event = JSON.parse(line);
+          } catch {
+            continue;
+          }
+          if (event.type === "result") {
+            resultEvent = event;
+            break;
+          }
+        }
+        if (!resultEvent) {
+          reject(new Error(`no 'result' event found in stream output
+STDOUT (last 500 chars):
+${stdout.slice(-500)}`));
+          return;
+        }
         resolve({
-          result: String(parsed.result ?? ""),
+          result: String(resultEvent.result ?? ""),
           usage: {
-            input_tokens: Number(parsed.usage?.input_tokens ?? 0),
-            output_tokens: Number(parsed.usage?.output_tokens ?? 0),
-            cost_usd: Number(parsed.usage?.cost_usd ?? 0)
+            input_tokens: Number(resultEvent.usage?.input_tokens ?? 0),
+            output_tokens: Number(resultEvent.usage?.output_tokens ?? 0),
+            cost_usd: Number(resultEvent.total_cost_usd ?? 0)
           },
           raw: stdout
         });
       } catch (e) {
-        reject(new Error(`failed to parse claude JSON output: ${e.message}
-STDOUT:
-${stdout}`));
+        reject(new Error(`failed to parse claude stream output: ${e.message}
+STDOUT (last 500 chars):
+${stdout.slice(-500)}`));
       }
     });
   });

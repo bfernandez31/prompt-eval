@@ -3,7 +3,9 @@ description: Evaluate /ai-board.specify on a representative feature description.
 
 target:
   repo: /Users/b.fernandez/Workspace/ai-board
-  prompt_file: .claude/commands/ai-board.specify.md
+  # NOTE: .claude/commands/ in ai-board is a symlink to .claude-plugin/commands/ that
+  # git does not track. Always target the canonical path under .claude-plugin/.
+  prompt_file: .claude-plugin/commands/ai-board.specify.md
   invoke: "/ai-board.specify"
 
 test_input:
