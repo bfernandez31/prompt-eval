@@ -127,7 +127,7 @@ If yes, set `eval.level2_decisions: { skip: true }`. Otherwise loop on user-prov
 
 ## Step 8 — Auto-generate `rubric`
 
-**Read `<plugin_root>/references/prompt-best-practices.md` first.** Its "Judge Rubric Default Criteria" section gives the foundation rubric anchored on the five universal axes (Clarity, Directness, Output Guidelines, Process Steps, Specificity).
+**Read `<plugin_root>/references/prompt-best-practices.md` first.** Its "Judge Rubric Default Criteria" section gives the foundation rubric anchored on the nine universal axes (1–7 best practices: Clarity, Directness, Output Guidelines, Process Steps, Specificity, XML Structure, Examples; 8–9 tuning: Robustness, Parameter Tuning).
 
 Then mine the target prompt for sections like `Quality Standards`, `Guidelines`, `For AI Generation`, `Section Requirements` and extract any **target-specific** criteria (e.g. for `ai-board.specify`: "right dosage of [NEEDS CLARIFICATION] markers", "absence of implementation details").
 
@@ -136,12 +136,16 @@ Compose the rubric by combining both layers:
 ```
 Compare two outputs (A and B) generated from the same input by two variations of the source prompt.
 
-# Universal axes
-- Clarity: no vague preamble, no hedge language
-- Directness: instructions and action verbs, not open questions
-- Output guidelines: explicit length / structure / required-element constraints met
-- Process steps: when the task is multi-faceted, did the steps actually constrain useful work
-- Specificity: concrete bounds rather than generic phrasing
+# Universal axes (see references/prompt-best-practices.md)
+- Clarity:           no vague preamble, no hedge language
+- Directness:        instructions and action verbs, not open questions
+- Output Guidelines: explicit length / structure / required-element constraints met
+- Process Steps:     when the task is multi-faceted, did the steps actually constrain useful work
+- Specificity:       concrete bounds rather than generic phrasing
+- Structure:         semantic XML tags delimit sections cleanly
+- Examples:          if present, wrapped in <sample_input>/<ideal_output> with commentary
+- Robustness:        handles edge cases / missing fields / ambiguous input gracefully
+- Parameter Tuning:  numeric thresholds and defaults are well-calibrated for this case
 
 # Target-specific (from this prompt's quality standards)
 - <criterion 1 extracted from prompt>

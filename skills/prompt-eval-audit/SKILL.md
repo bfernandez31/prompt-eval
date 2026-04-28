@@ -61,6 +61,12 @@ Check: are there large content blocks (data, code, docs, examples) interpolated 
 ### Axis 7 — Examples
 Check: are there any input/output examples? Are they wrapped in `<sample_input>` / `<ideal_output>` tags? Is there commentary after the ideal output explaining *why* it's ideal? High score = at least one well-tagged example with commentary, covering an edge case. Low score = no examples or only inline-prose "for example, you might..." mentions.
 
+### Axis 8 — Robustness (edge-case handling)
+Check: does the prompt explicitly handle malformed/missing/ambiguous inputs? Are there fallbacks for empty fields, oversized payloads, contradictory signals? Is there a catch-all "if nothing matches, do <X>" rule? High score = inputs are validated up-front and every decision branch has an explicit tie-breaker. Low score = silent assumptions ("the description will be a paragraph"), no fallback for missing fields, no tie-breakers.
+
+### Axis 9 — Parameter Tuning
+Check: does the prompt have numeric parameters (weights, thresholds, max counts, defaults)? Are they justified, or are they magic numbers? High score = explicit rationale next to each parameter, OR parameters reference a calibration source. Low score = sprinkled magic numbers (`+3`, `0.5`, `max 3`) with no explanation. Note this axis isn't about whether the values are correct — that requires empirical testing — only whether they're documented well enough that a future tuner knows where to start.
+
 ## Step 3 — Compute overall score
 
 `overall = round(mean(axis scores), 1)`
@@ -200,7 +206,13 @@ Format the chat output like this (markdown rendered inline by Claude Code):
 |---|---|---|---|
 | 1 | Clarity | 7/10 | minor preamble in section "Outline" |
 | 2 | Directness | 8/10 | mostly imperative |
-| ... (all 7) ... |
+| 3 | Output Guidelines | ... | ... |
+| 4 | Process Steps | ... | ... |
+| 5 | Specificity | ... | ... |
+| 6 | Structure (XML) | ... | ... |
+| 7 | Examples | ... | ... |
+| 8 | Robustness | ... | ... |
+| 9 | Parameter Tuning | ... | ... |
 
 ## Quick fixes (apply directly)
 

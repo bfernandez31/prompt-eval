@@ -178,6 +178,64 @@ For new prompts without history, hand-pick 1-3 representative cases (covering at
 
 ---
 
+## Axis 8 — Robustness (edge-case handling)
+
+Most prompts have a happy path that works fine. They fall over on **degenerate inputs**: malformed payloads, missing fields, ambiguous phrasing, contradictory signals, empty strings, oversized inputs, encoding artefacts.
+
+Look for:
+- A prompt that reads inputs from a structured payload but never says what to do if a required field is missing
+- Free-text input fields with no length cap or sanitisation guidance
+- Implicit assumptions about input format (e.g. "the description will be a paragraph") with no fallback
+- Decision logic with no explicit tie-breaker for ambiguous signals
+- No instruction for "what to do when nothing matches" / catch-all
+
+**Anti-patterns:**
+- *"Parse the JSON payload"* → silently breaks on a malformed payload
+- *"Extract the user's intent"* → on ambiguous phrasing, the model picks one branch arbitrarily
+- *"Use the title and description to..."* → empty title or description? Undefined behaviour.
+
+**Hypothesis shape:** *"In section X, add an explicit fallback for [missing field | malformed input | ambiguous signal]: 'If <condition>, do <fallback>; otherwise proceed.'"* or *"Add an early-validation step rejecting inputs that fail <constraint> with a clear error message before anything else runs."*
+
+---
+
+## Axis 9 — Parameter Tuning (numeric thresholds, weights, defaults)
+
+Once a prompt has parameters — scoring weights, max counts, confidence thresholds, default policies — those parameters were almost certainly picked by guess on day one. They're worth empirical re-tuning.
+
+Common tuning surfaces:
+- **Numeric weights/scores** — *"Sensitive keywords (+3)"* → why 3 and not 4?
+- **Max/min counts** — *"Maximum 3 [NEEDS CLARIFICATION] markers"* → 2? 5?
+- **Confidence thresholds** — *"If confidence < 0.5, fall back to CONSERVATIVE"* → 0.4? 0.6?
+- **Default policies** — *"Default to AUTO unless specified"* → CONSERVATIVE more often a better default?
+- **Iteration caps** — *"Up to 3 iterations"* → 1? 5?
+
+These changes don't fit cleanly under the other 8 axes — they're not about clarity or structure, they're about calibration. They're also **the most likely to be both small-diff AND high-impact** (one-number changes that can shift behaviour materially).
+
+**Anti-patterns:**
+- Magic numbers without justification (`× 3`, `≥ 0.5`)
+- One-size-fits-all defaults that ignore context (`always CONSERVATIVE`)
+- Iteration caps inherited from an earlier version of the prompt without re-evaluation
+
+**Hypothesis shape:** *"In section X, change parameter `<name>` from `<old>` to `<new>` (small step, ±1 unit or ±0.1 for fractions). Rationale: <one-line>."*
+
+Pair this axis with **bracket judging** to learn which direction the parameter wants to move. Don't propose 5 different values for the same parameter in one round — that creates a multi-arm bandit, not a clean A/B.
+
+---
+
+## Beyond axes — domain-specific tweaks
+
+Some valid hypothesis types are not universally applicable. Use them when the target prompt happens to expose the surface:
+
+- **Cost/length reduction** — strip a long-but-redundant section (e.g. duplicated guidance), test whether the output quality holds. Worth trying when you suspect the prompt is bloated.
+- **Model substitution** — if the prompt internally invokes another model (e.g. as a sub-task), test a smaller/cheaper model for that sub-task.
+- **Constraint removal** — sometimes the right move is to *remove* a constraint that's over-restricting. The bracket will tell you if quality holds.
+- **Section reordering** — moving a high-leverage section (output spec, examples) earlier in the prompt.
+- **Conflict resolution rules** — explicit tie-breakers when multiple branches of the prompt could fire.
+
+Don't force these into hypotheses if the target doesn't have the surface. But if it does, they're as valid as the 9 universal axes.
+
+---
+
 ## Generation Heuristics for the Skill
 
 When you propose hypotheses for round 1 (auto mode) or round N+1 (any mode), follow these rules:
@@ -190,7 +248,9 @@ When you propose hypotheses for round 1 (auto mode) or round N+1 (any mode), fol
 
 4. **Cover multiple axes across hypotheses.** If round 1 has 3 hyp, target 3 different axes. If two hyp target the same axis, you're wasting a slot.
 
-5. **Pick axes by inspection.** Read the target prompt first. Look for: vague language → axis 1; questions where instructions belong → axis 2; missing output spec → axis 3; complex task with no steps → axis 4; generic phrasings → axis 5; large content blocks with no delimiters → axis 6; absent or inline-prose examples → axis 7. Don't guess what's broken — read.
+5. **Pick axes by inspection.** Read the target prompt first. Look for: vague language → axis 1; questions where instructions belong → axis 2; missing output spec → axis 3; complex task with no steps → axis 4; generic phrasings → axis 5; large content blocks with no delimiters → axis 6; absent or inline-prose examples → axis 7; missing fallbacks for malformed/ambiguous input → axis 8; magic numbers without justification → axis 9; bloat / model-cost imbalance / over-restrictive constraints → "beyond axes". Don't guess what's broken — read.
+
+6. **Read the latest audit, if any.** Before generating from scratch, check `~/.prompt-eval/audits/<target-basename>-*.md`. If a recent audit exists, its "A/B test candidates" section already lists hypotheses derived from a careful read of the prompt. Use those as a base; only add self-generated hypotheses to cover axes the audit didn't reach.
 
 6. **Document the axis in the description.** Each hypothesis description starts with `[Axis N: <name>] ...` so the round report shows which axes have been explored vs. untouched. Example: `[Axis 3: Output Guidelines] Add an explicit length cap of 200 words for the summary section.`
 
@@ -198,7 +258,7 @@ When you propose hypotheses for round 1 (auto mode) or round N+1 (any mode), fol
 
 ## Judge Rubric Default Criteria
 
-The default rubric used by `prompt-eval-init` (or hand-authored profiles) should evaluate outputs along the same seven axes:
+The default rubric used by `prompt-eval-init` (or hand-authored profiles) should evaluate outputs along the nine axes:
 
 ```
 Compare two outputs (A and B) generated from the same input by two variations of the source prompt. For each output ask:
@@ -209,12 +269,14 @@ Compare two outputs (A and B) generated from the same input by two variations of
   - Process Steps:     for complex tasks, did the steps actually constrain useful work
   - Specificity:       concrete bounds, not generic phrasing
   - Structure:         semantic XML tags delimit sections cleanly
-  - Examples:          if present, are they wrapped in <sample_input>/<ideal_output> with commentary
+  - Examples:          if present, wrapped in <sample_input>/<ideal_output> with commentary
+  - Robustness:        handles edge cases / missing fields / ambiguous input gracefully
+  - Parameter Tuning:  numeric thresholds and defaults are well-calibrated for this case
 
 Decide: "A" | "B" | "tied". Give a one-line rationale citing the strongest axis where the winner beats the loser.
 ```
 
-Profile authors are free to extend the rubric with target-specific criteria (e.g. for `ai-board.specify`: "right dosage of [NEEDS CLARIFICATION] markers", "absence of implementation details") — but should keep these axis-1-to-7 anchors as the foundation.
+Profile authors are free to extend the rubric with target-specific criteria (e.g. for `ai-board.specify`: "right dosage of [NEEDS CLARIFICATION] markers", "absence of implementation details") — but should keep these axis-1-to-9 anchors as the foundation.
 
 ---
 

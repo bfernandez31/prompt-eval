@@ -91,24 +91,37 @@ Use them directly. Persist under `eval-run.yml.hypotheses_round_1` and proceed.
 
 ### (b) `mode: auto` AND `initial_hypotheses` empty — generate them yourself
 
-**Read `<plugin_root>/references/prompt-best-practices.md` first.** It defines the 5 axes (Clarity, Directness, Output Guidelines, Process Steps, Specificity) you must use as your generation framework, along with concrete heuristics:
+**Read `<plugin_root>/references/prompt-best-practices.md` first.** It defines:
+- **9 universal axes** (1–7 best practices: Clarity, Directness, Output Guidelines, Process Steps, Specificity, XML Structure, Examples; 8–9 tuning: Robustness, Parameter Tuning)
+- **A "beyond axes" category** for domain-specific tweaks (cost/length, model swap, constraint removal, section reordering)
+- **Generation heuristics** you must follow (one axis per hypothesis, prefer additions, small diffs, cover multiple axes, prefix with `[Axis N: <name>]` or `[Beyond: <category>]`)
 
-- Each hypothesis targets exactly **one** axis (so the bracket can attribute signal)
-- Prefer additions over deletions
-- Keep diffs small (≤ 10 lines, surgical)
-- Cover multiple axes across the round (don't repeat axes)
-- Inspect the target prompt before guessing — pick axes that match real weaknesses
-- Prefix each description with `[Axis N: <name>]` for traceability
+**Then look for an existing audit.** Before generating from scratch:
+
+```bash
+target_basename="$(basename '<profile.target.prompt_file>' .md)"
+latest_audit="$(ls -1 $HOME/.prompt-eval/audits/${target_basename}-*.md 2>/dev/null | sort | tail -n1)"
+```
+
+If `$latest_audit` exists, parse its "## A/B test candidates" section. Each candidate already comes with a description, axis tag, and unified diff. **Use those as your starting set.** Only add self-generated hypotheses if the audit didn't cover an axis or category you think is worth probing this round.
+
+Surface this to the run state with provenance: `eval-run.yml.hypotheses_round_1[k].source = "audit:<basename of audit file>"` for audit-derived ones, `"generated"` for the rest.
 
 Then:
 1. Read `$run_dir/original-baseline.md` (the target prompt)
-2. Identify weaknesses by axis
-3. Propose 3–5 hypotheses, one per chosen axis
-4. Generate a unified diff for each
-5. Persist as separate files (per the diff persistence rule below) with metadata in `eval-run.yml.hypotheses_round_1`
+2. Identify weaknesses by axis OR check the audit's findings
+3. Propose 3–5 hypotheses combining audit candidates (priority) + axis-based additions for diversity
+4. Generate / extract a unified diff for each
+5. Persist as separate files (per the diff persistence rule below) with metadata + `source` in `eval-run.yml.hypotheses_round_1`
 6. Proceed to Phase 2 without user intervention
 
 ### (c) `mode: semi-auto` AND `initial_hypotheses` empty — interactive loop with the user
+
+Even in semi-auto, **check `~/.prompt-eval/audits/` first**. If a recent audit exists for the target, mention it to the user up-front and offer its A/B candidates as a starting menu:
+
+> "I found a recent audit at `<path>` with N A/B candidates. Want me to use them as the round-1 hypotheses? (Y/N) Or describe your own."
+
+This skips the user re-typing what the audit already produced.
 
 > "I'm preparing round 1 for `<profile.name>`. The target prompt is at `<profile.target.prompt_file>` (in `<profile.target.repo>`). Describe your first hypothesis in plain language (e.g. 'tighten the AUTO security keyword bonus from +3 to +2'). I'll generate a unified diff and ask you to confirm before adding it."
 

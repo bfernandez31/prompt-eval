@@ -47,6 +47,8 @@ eval:
       - Specificity:       concrete bounds rather than generic phrasing
       - Structure:         semantic XML tags delimit sections cleanly
       - Examples:          if present, wrapped in <sample_input>/<ideal_output> with commentary
+      - Robustness:        handles edge cases / missing fields / ambiguous input gracefully
+      - Parameter Tuning:  numeric thresholds and defaults are well-calibrated for this case
 
       # Target-specific (ai-board.specify)
       - Relevance and defensibility of auto-resolved decisions
