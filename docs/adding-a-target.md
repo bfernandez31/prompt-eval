@@ -1,6 +1,16 @@
 # Adding a New Target
 
-To target a new prompt (e.g. `ai-board.compare`), create one YAML file under `profiles/` and copy the structure of `profiles/ai-board.specify.yml`. Edit only:
+## Recommended: use the wizard
+
+```
+/prompt-eval-init <new-profile-name>
+```
+
+The `prompt-eval-init` skill walks you through the profile in ~6 questions, auto-detecting `target.repo`, `target.invoke`, `output_artifact`, the L2 section + decision_key, and a starter rubric from the prompt's content. It saves a validated YAML at `profiles/<name>.yml`.
+
+## Manual authoring
+
+If you'd rather write the YAML by hand: copy the structure of `profiles/ai-board.specify.yml`. Edit only:
 
 1. `target.prompt_file` and `target.invoke`
 2. `test_input.payload` (a representative input for that command)

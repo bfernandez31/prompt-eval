@@ -50,11 +50,23 @@ The plugin ships a bundled `dist/cli.js` (yaml dependency embedded), so no `bun 
 
 ## Usage
 
+### Bootstrap a new profile (no YAML to write by hand)
+
 ```
-/prompt-eval ai-board.specify
+/prompt-eval-init ai-board.compare
 ```
 
-The skill opens an interactive hypothesis loop, then dispatches an Agent Team to evaluate each hypothesis through the cascade and report back. See [`docs/adding-a-target.md`](docs/adding-a-target.md) to evaluate other prompts.
+Interactive wizard that reads the target prompt, auto-detects fields where possible (output path, decision section, rubric criteria), asks you to confirm, and saves a validated `profiles/ai-board.compare.yml`. ~6 questions max.
+
+### Run an evaluation
+
+```
+/prompt-eval ai-board.specify                    # semi-auto (default)
+/prompt-eval ai-board.specify --mode auto        # zero intervention
+/prompt-eval ai-board.specify --max-budget 20    # tighter cap
+```
+
+The skill dispatches an Agent Team to evaluate each hypothesis through the cascade and report back. See [`docs/adding-a-target.md`](docs/adding-a-target.md) for manual profile authoring details.
 
 ## Contributing / Dev Workflow
 

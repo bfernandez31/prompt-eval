@@ -6,14 +6,14 @@
   },
   "metadata": {
     "description": "Self-improvement framework for Claude Code prompts via 3-level evaluation cascade with Agent Teams.",
-    "version": "0.0.2"
+    "version": "0.0.3"
   },
   "plugins": [
     {
       "name": "prompt-eval",
       "source": "./",
       "description": "Run hypothesis-based evaluation campaigns on Claude Code prompts: stability via Mistral embeddings, decision-consistency parsing, and bracket pairwise quality judging — driven by an Agent Team.",
-      "version": "0.0.2",
+      "version": "0.0.3",
       "author": {
         "name": "bfernandez31"
       },
