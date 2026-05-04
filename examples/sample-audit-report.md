@@ -35,6 +35,7 @@ Output the summary directly.
 
 ## Prompt surface
 
+- `prompt_type`: artifact-emitting — the prompt produces a discrete summary artifact
 - `has_interpolated_blocks`: true — the prompt reads an article placeholder
 - `output_is_generative_ambiguous`: true — summary style/voice has multiple valid shapes
 - `has_numeric_parameters`: true — "200 words" is a behavior-influencing number
@@ -50,7 +51,7 @@ Output the summary directly.
 |---|---|---|---|---|
 | 1 | Clarity | universal | 4/10 | hedge language ("try to", "can use", "is fine") |
 | 2 | Directness | universal | 5/10 | "be helpful and concise" is vague |
-| 3 | Output Guidelines | universal | 3/10 | "200 words" is loose; no format spec |
+| 3 | Output Guidelines | universal | 3/10 | (artifact surface) "200 words" is loose; no format spec; no required elements |
 | 4 | Process Steps | universal | 7/10 | task is single-step — no scaffolding needed |
 | 5 | Specificity | universal | 3/10 | "good", "main idea", "long", "short" — all undefined |
 | 6 | Structure (XML) | conditional | 2/10 | no tags around the article-content placeholder |

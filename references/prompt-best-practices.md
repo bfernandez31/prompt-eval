@@ -40,6 +40,10 @@ A direct prompt uses:
 
 ## Axis 3 — Output Guidelines (almost always worth adding)
 
+The surface for Axis 3 depends on the prompt's type — see "Applying the axes" below for the artifact-emitting vs action-agent split. Both surfaces matter; both can be scored.
+
+### For artifact-emitting prompts
+
 Output guidelines control:
 - **Length** (e.g. *"under 1000 words", "exactly 3 paragraphs"*)
 - **Structure / format** (e.g. *"markdown table with columns A, B, C", "JSON with keys foo, bar"*)
@@ -48,12 +52,23 @@ Output guidelines control:
 
 A documented case from Anthropic shows adding output guidelines moved a meal-planning evaluation from 3.92 → 7.86 — **doubling output quality** with no other change.
 
-**Anti-patterns:**
-- Implicit length expectations (*"a brief summary"* — how brief?)
-- Unspecified format (let the model pick → inconsistent runs)
+### For action agents
+
+The agent's edits/actions can't be format-specified (they depend on input). What CAN be specified is the meta-behavior:
+- **No-op rule** (e.g. *"if no simplifications needed, say 'no changes needed' and exit"*)
+- **Summary format** (e.g. *"after edits, list the changes as bullets, ≤150 words"*)
+- **Granularity** (e.g. *"bundle related edits in one diff; propose breaking changes separately"*)
+- **Interactivity** (e.g. *"confirm before edits that delete >20 lines"*)
+
+**Anti-patterns (both surfaces):**
+- Implicit length / behavior expectations (*"a brief summary"* — how brief? / *"do the right thing"*)
+- Unspecified format on the artifact (let the model pick → inconsistent runs)
+- Missing no-op rule on action agents (the agent invents work to justify itself)
 - Missing must-include elements (the model omits things you wanted)
 
-**Hypothesis shape:** *"Add an explicit output-format spec at the end of section X: length, required elements, structure."*
+**Hypothesis shape (artifact):** *"Add an explicit output-format spec at the end of section X: length, required elements, structure."*
+
+**Hypothesis shape (action agent):** *"Add a no-op rule and summary contract at the end of section X: when to exit silently, what to report after acting, in what format."*
 
 ---
 
@@ -231,6 +246,16 @@ Not all 9 axes apply to every prompt. Treating them as uniformly applicable prod
 **Axes 1, 2, 3, 4, 5, 8** — Clarity, Directness, Output Guidelines, Process Steps, Specificity, Robustness.
 
 These are properties any prompt can have or fail to have, regardless of style. A 30-line agent definition and a 250-line orchestration skill both need clear language, imperative directness, output bounds, scaffolding for multi-step tasks, concrete asks, and edge-case fallbacks. Score 1-10. Never N/A.
+
+#### Axis 3's adaptive surface (artifact-emitting vs action-agent)
+
+Axis 3 is universal but its checklist adapts to the prompt's *type* (recorded in Step 1.5 as `prompt_type`):
+
+- **Artifact-emitting prompts** (produce a discrete deliverable: spec.md, JSON, report, generated text) → Axis 3 scores the artifact: length cap, format spec, required-elements list, tone/style. The classic Anthropic case study (meal-planning eval 3.92 → 7.86) is on this surface.
+- **Action agents** (act on the world: edit code, dispatch sub-agents, run commands) → the actual edits/actions are by nature contextual and can't be format-specified. Axis 3 scores the *meta-behavior* instead: no-op rule ("if no changes needed, say so"), summary format (what does the agent report after acting, in what shape), edit granularity (one bundled change vs many proposals), interactivity (confirmation gates before risky moves).
+- **Hybrid prompts** (both — e.g. a slash command that writes a spec AND posts a comment) → both checklists apply; score on the weaker surface.
+
+A score of 4/10 on an action-agent for "no output spec on the artifact" is a category error — the artifact doesn't exist. The right finding is "no no-op rule, no summary format". Recommendations should target the surface that actually applies.
 
 ### Surface-conditional axes (applicable only when the prompt has the surface)
 

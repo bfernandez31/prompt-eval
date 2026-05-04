@@ -124,6 +124,8 @@ A naive mean over 9 axes punishes prompt styles that legitimately don't use 3 of
 
 The Core score covers what every prompt should do regardless of style (clear, direct, bounded output, scaffolded, specific, robust). The Contextual score only counts axes whose surface actually exists. This makes Core comparable across prompt styles, and stops the audit from "fixing" axes that aren't broken.
 
+Axis 3 (Output Guidelines) stays universal but adapts its checklist to the prompt's type — artifact-emitting prompts are scored on length/format/required-elements of the artifact, action agents are scored on no-op rules / summary format / edit granularity / confirmation gates. The actual edits an action agent makes are by nature contextual and can't be format-specified; what *can* be contracted is the agent's meta-behavior. See [`references/prompt-best-practices.md`](references/prompt-best-practices.md) for the full breakdown.
+
 ### 2. Bootstrap a profile — `$`
 
 If you don't have a profile for this prompt yet:

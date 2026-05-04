@@ -54,7 +54,12 @@ Inspect the prompt and set three booleans. Record them in the report — they dr
 - **`has_numeric_parameters`** — `true` if the prompt contains weights, thresholds, max counts, percentages, or numeric defaults that influence behavior (e.g. `+3`, `≥0.5`, `max 3`, `30%`, `1500 chars`). `false` if the only numbers are ordinal step labels (`1.`, `2.`) or schema field positions.
   - Controls **axis 9 (Parameter Tuning)**.
 
-These booleans are NOT a quality signal — a prompt with all three `false` is not a worse prompt, just a prompt of a different style.
+- **`prompt_type`** — one of `artifact-emitting`, `action-agent`, `hybrid`. This does NOT add or remove an axis — it tells **axis 3 (Output Guidelines)** which surface to score against (see Axis 3 description below).
+  - `artifact-emitting` = the prompt produces a discrete deliverable (spec.md, JSON payload, report, summary, code-review comment, generated answer text). Axis 3 scores the artifact: length cap, format spec, required elements, tone.
+  - `action-agent` = the prompt defines an agent that *acts* on the world (edits code, dispatches sub-agents, runs commands, modifies state) without necessarily emitting a single artifact. Axis 3 scores the meta-behavior: no-op rule, summary format, edit granularity, confirmation gates.
+  - `hybrid` = both (e.g. a slash command that writes a spec AND posts a comment). Score on the weaker surface.
+
+These booleans/types are NOT a quality signal — a prompt with `interpolated_blocks=false`, `generative_ambiguous=false`, `numeric_parameters=false`, `prompt_type=action-agent` is not a worse prompt, just a different style.
 
 ## Step 2 — Score each axis (1-10 or N/A)
 
@@ -73,7 +78,14 @@ Scan for: vague preambles, hedge language ("maybe", "perhaps", "could possibly",
 Scan for: questions where instructions belong (`What countries...?` instead of `Identify three countries...`), missing action verbs at section openers, polite phrasings that obscure the demand. High score = imperatives with strong action verbs.
 
 ### Axis 3 — Output Guidelines
-Check: is there an explicit length cap? a format spec? a required-elements list? tone/style guidance? High score = each output dimension constrained explicitly. Low score = "produce something good" without bounds.
+
+Every prompt has *some* output. The question is whether what's emitted is constrained. **Axis 3 is universal but its surface depends on `prompt_type` from Step 1.5** — pick the right checklist:
+
+- **`prompt_type == artifact-emitting`** → score the artifact: explicit length cap? format spec (markdown shape, JSON schema, table layout)? required-elements list? tone/style? High score = each artifact dimension constrained explicitly.
+- **`prompt_type == action-agent`** → score the meta-behavior: explicit **no-op rule** ("if no changes needed, say so and exit")? **summary format** (does the agent report what it did, in what shape, length bound)? **granularity** (one bundled change vs many separate proposals)? **interactivity / confirmation gates** before risky edits? High score = the agent's behavior surface is contracted, not just its actions.
+- **`prompt_type == hybrid`** → both checklists apply; score on the weaker surface.
+
+Low score = "produce something good" / "do the right thing" without bounds — regardless of prompt type. The one-line summary in the report should mention which checklist was applied (e.g. `4/10 (action-agent: no no-op rule, no summary format)`).
 
 ### Axis 4 — Process Steps
 Check: is the task multi-faceted (debug, decide, root-cause, analyse multi-dim)? If yes, are there numbered steps? Are they BEFORE the output spec (so they actually constrain the work)? High score = appropriate steps in the right place. Low score = complex task with no scaffolding.
@@ -170,6 +182,7 @@ Compose a markdown report with this structure:
 
 ## Prompt surface
 
+- `prompt_type`: <artifact-emitting|action-agent|hybrid> — <one-line reason; controls Axis 3's surface>
 - `has_interpolated_blocks`: <true|false> — <one-line reason>
 - `output_is_generative_ambiguous`: <true|false> — <one-line reason>
 - `has_numeric_parameters`: <true|false> — <one-line reason>
@@ -268,7 +281,7 @@ Format the chat output like this (markdown rendered inline by Claude Code):
 **Core (axes 1-5, 8):** <core>/10  ← headline
 **Contextual (applicable among 6, 7, 9):** <contextual>/10  *or*  N/A
 
-> Surface: interpolated_blocks=<bool>, generative_ambiguous=<bool>, numeric_parameters=<bool>
+> Surface: type=<artifact-emitting|action-agent|hybrid>, interpolated_blocks=<bool>, generative_ambiguous=<bool>, numeric_parameters=<bool>
 
 | Axis | Name | Type | Score | One-line |
 |---|---|---|---|---|
