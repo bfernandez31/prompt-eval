@@ -131,7 +131,7 @@ If yes, set `eval.level2_decisions: { skip: true }`. Otherwise loop on user-prov
 
 ## Step 8 — Auto-generate `rubric`
 
-**Read `<plugin_root>/references/prompt-best-practices.md` first.** Its "Judge Rubric Default Criteria" section gives the foundation rubric anchored on the nine universal axes (1–7 best practices: Clarity, Directness, Output Guidelines, Process Steps, Specificity, XML Structure, Examples; 8–9 tuning: Robustness, Parameter Tuning).
+**Read `<plugin_root>/references/prompt-best-practices.md` first.** Its "Judge Rubric Default Criteria" section gives the foundation rubric anchored on the 9 best-practice axes — 6 universal (1, 2, 3, 4, 5, 8: Clarity, Directness, Output Guidelines, Process Steps, Specificity, Robustness) and 3 surface-conditional (6, 7, 9: XML Structure, Examples, Parameter Tuning). The surface-conditional axes apply only when the *output* has the corresponding surface — the judge LLM applies them in context (a fixed-JSON output legitimately ignores the Examples criterion).
 
 Then mine the target prompt for sections like `Quality Standards`, `Guidelines`, `For AI Generation`, `Section Requirements` and extract any **target-specific** criteria (e.g. for `ai-board.specify`: "right dosage of [NEEDS CLARIFICATION] markers", "absence of implementation details").
 
@@ -140,16 +140,18 @@ Compose the rubric by combining both layers:
 ```
 Compare two outputs (A and B) generated from the same input by two variations of the source prompt.
 
-# Universal axes (see references/prompt-best-practices.md)
+# Universal axes — always applicable (see references/prompt-best-practices.md)
 - Clarity:           no vague preamble, no hedge language
 - Directness:        instructions and action verbs, not open questions
 - Output Guidelines: explicit length / structure / required-element constraints met
 - Process Steps:     when the task is multi-faceted, did the steps actually constrain useful work
 - Specificity:       concrete bounds rather than generic phrasing
-- Structure:         semantic XML tags delimit sections cleanly
-- Examples:          if present, wrapped in <sample_input>/<ideal_output> with commentary
 - Robustness:        handles edge cases / missing fields / ambiguous input gracefully
-- Parameter Tuning:  numeric thresholds and defaults are well-calibrated for this case
+
+# Surface-conditional axes — apply only if the output has the surface
+- Structure:         if the output interpolates content blocks, are they wrapped in semantic XML tags
+- Examples:          if the output contains examples, wrapped in <sample_input>/<ideal_output> with commentary
+- Parameter Tuning:  if the output exposes numeric thresholds/defaults, are they well-calibrated
 
 # Target-specific (from this prompt's quality standards)
 - <criterion 1 extracted from prompt>

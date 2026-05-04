@@ -60,7 +60,7 @@ The wizard `/prompt-eval-init` generates this file for you in ~6 questions. You'
 
 | Skill | Cost | Purpose |
 |---|---|---|
-| `/prompt-eval-audit <path>` | `$` | **Static audit** — score the prompt against 7 best-practice axes, list quick wins and A/B candidates, no runs |
+| `/prompt-eval-audit <path>` | `$` | **Static audit** — score the prompt against 9 best-practice axes (6 universal + 3 surface-conditional), produce a dual Core/Contextual score, list quick wins and A/B candidates, no runs |
 | `/prompt-eval-init <name>` | `$` | **Wizard** — interactive Q&A that produces a validated `profiles/<name>.yml` |
 | `/prompt-eval <name>` | `$$$` | **Empirical eval** — runs hypothesis variations through the cascade (L1 stability → L2 decisions → L3 pairwise bracket) |
 
@@ -109,12 +109,20 @@ The plugin ships a bundled `dist/cli.js` with the `yaml` dependency embedded, so
 
 You get back, **inline in the chat**:
 
-- Score per axis (1-10) with one-line summaries
-- Each quick fix: title + scope + change description + diff size
-- Each A/B candidate: title + scope + why it needs empirical testing + expected impact
-- Verbatim quotes from the prompt for any axis scoring < 7
+- A **Core score** (mean of axes 1, 2, 3, 4, 5, 8 — the 6 universal axes) — the headline.
+- A **Contextual score** (mean of applicable axes among 6, 7, 9 — surface-conditional) or `N/A` if none apply.
+- Score per axis (1-10 or `N/A`) with one-line summaries. `N/A` means the prompt's style doesn't have the surface that axis targets — not a defect.
+- Each quick fix: title + scope + change description + diff size.
+- Each A/B candidate: title + scope + why it needs empirical testing + expected impact.
+- Verbatim quotes from the prompt for any **applicable** axis scoring < 7.
 
 A markdown report with the full unified diffs is also saved under `audits/`. You can apply quick fixes from there with `patch -p1`.
+
+#### Why two scores instead of one?
+
+A naive mean over 9 axes punishes prompt styles that legitimately don't use 3 of them. A clean instruction-pure agent prompt has no interpolated content blocks (axis 6), no generative-ambiguous output (axis 7), and no numeric parameters (axis 9) — those axes don't apply, but a single mean would drag the score down by ~3 points for surfaces the prompt doesn't have.
+
+The Core score covers what every prompt should do regardless of style (clear, direct, bounded output, scaffolded, specific, robust). The Contextual score only counts axes whose surface actually exists. This makes Core comparable across prompt styles, and stops the audit from "fixing" axes that aren't broken.
 
 ### 2. Bootstrap a profile — `$`
 
@@ -189,7 +197,7 @@ See [`docs/architecture.md`](docs/architecture.md) for the full picture.
 
 ## Documentation
 
-- [`references/prompt-best-practices.md`](references/prompt-best-practices.md) — the 7 universal axes that drive audit scoring, hypothesis generation, and judge rubrics. **Single source of truth** for what "good" means.
+- [`references/prompt-best-practices.md`](references/prompt-best-practices.md) — the 9 best-practice axes (6 universal + 3 surface-conditional) that drive audit scoring, hypothesis generation, and judge rubrics. Includes the "Applying the axes" section explaining when surface-conditional axes are scored vs N/A. **Single source of truth** for what "good" means.
 - [`docs/architecture.md`](docs/architecture.md) — flat skill/runner topology, why we avoid nested teams.
 - [`docs/eval-cascade.md`](docs/eval-cascade.md) — what L1/L2/L3 do, gate thresholds, the bracket rules.
 - [`docs/adding-a-target.md`](docs/adding-a-target.md) — manual profile authoring (use the wizard first; this doc is the fallback).

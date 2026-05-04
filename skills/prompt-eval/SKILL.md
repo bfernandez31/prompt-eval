@@ -114,7 +114,7 @@ Use them directly. Persist under `eval-run.yml.hypotheses_round_1` and proceed.
 ### (b) `mode: auto` AND `initial_hypotheses` empty — generate them yourself
 
 **Read `<plugin_root>/references/prompt-best-practices.md` first.** It defines:
-- **9 universal axes** (1–7 best practices: Clarity, Directness, Output Guidelines, Process Steps, Specificity, XML Structure, Examples; 8–9 tuning: Robustness, Parameter Tuning)
+- **9 best-practice axes** — 6 universal (1, 2, 3, 4, 5, 8: Clarity, Directness, Output Guidelines, Process Steps, Specificity, Robustness) and 3 surface-conditional (6, 7, 9: XML Structure, Examples, Parameter Tuning). Surface-conditional axes only apply when the prompt has the surface they target — see "Applying the axes" in the reference. Don't propose hypotheses for axes whose surface doesn't exist on this target.
 - **A "beyond axes" category** for domain-specific tweaks (cost/length, model swap, constraint removal, section reordering)
 - **Generation heuristics** you must follow (one axis per hypothesis, prefer additions, small diffs, cover multiple axes, prefix with `[Axis N: <name>]` or `[Beyond: <category>]`)
 - **Size-aware hypothesis design** — compute the per-hypothesis line budget from the target prompt's current size: ≤50 lines = up to +200%, 50-200 lines = ≤30%, ≥200 lines = ≤10%. Apply size-saving patterns from the reference (external example files + reference, inline one-liner rationale, terse fallbacks) when over budget, or split the change across rounds. Bloat regresses other axes — the bracket judge sees this.

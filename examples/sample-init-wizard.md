@@ -45,7 +45,7 @@ with the target prompt at `/Users/me/work/acme/.claude-plugin/commands/acme.summ
          Confirm? (Y/n)
 > y
 
-[Step 8] Auto-generated rubric (foundation = 9 universal axes from references/prompt-best-practices.md
+[Step 8] Auto-generated rubric (foundation = 9 best-practice axes — 6 universal + 3 surface-conditional, see references/prompt-best-practices.md
          + target-specific extracted from your prompt's wording):
 
          Compare two summaries (A and B) of the same article.

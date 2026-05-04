@@ -1,6 +1,6 @@
 ---
 name: prompt-eval-audit
-description: Static audit of a Claude Code prompt (slash-command, skill, or agent) against the 7 universal prompt-engineering best-practice axes. Reads the file, scores each axis 1-10, lists concrete findings with quotes, and produces ranked recommendations split into "quick fixes" (apply directly without empirical testing) and "A/B test candidates" (worth validating via /prompt-eval). Costs near-zero — one LLM analysis pass, no runs. Use BEFORE running a /prompt-eval campaign to harvest the obvious wins and save the hypothesis budget for genuinely ambiguous changes.
+description: Static audit of a Claude Code prompt (slash-command, skill, or agent) against 9 prompt-engineering best-practice axes — 6 universal (always scored) and 3 surface-conditional (scored only when the prompt has the surface they target). Produces a dual score (Core for the universal axes, Contextual for the applicable conditional ones) plus ranked recommendations split into "quick fixes" (apply directly) and "A/B test candidates" (validate via /prompt-eval). Costs near-zero — one LLM analysis pass, no runs. Use BEFORE running a /prompt-eval campaign to harvest the obvious wins and save the hypothesis budget for genuinely ambiguous changes.
 ---
 
 # Activation
@@ -33,17 +33,38 @@ plugin_root="$(cd "$(dirname "$(realpath ./skills/prompt-eval-audit/SKILL.md)")/
 1. Read the prompt file at `<absolute-path-to-prompt>` via the Read tool.
    - **Robustness fallback:** if the path doesn't exist, abort with: `"audit target not found: <path>. Pass an absolute path to a markdown file."`
    - If the file is empty (`0` bytes) or contains no markdown headings: abort with `"audit target appears empty or non-markdown — nothing to score."`
-2. Read `<plugin_root>/references/prompt-best-practices.md` to ground the analysis. The 9 axes + heuristics defined there are your evaluation framework.
+2. Read `<plugin_root>/references/prompt-best-practices.md` to ground the analysis. The 9 axes + heuristics defined there are your evaluation framework. Pay particular attention to the **"Applying the axes — universal vs surface-conditional"** section: 6 axes are universal, 3 are surface-conditional, and surface-conditional axes get scored `N/A` when their surface doesn't exist.
 3. If `--profile <name>` was passed: resolve the profile in priority order — first `$HOME/.prompt-eval/profiles/<name>.yml`, then `$plugin_root/profiles/<name>.yml` (the latter holds built-in profiles like `ai-board.specify`). Load it and extract `eval.level3_quality.rubric`. Pull out target-specific bullet criteria (the lines under `# Target-specific (...)` if structured that way) for use in step 4.
-   - **Robustness fallback:** if `--profile` was passed but the profile is not found in either location, **warn but do not abort** — proceed with the 9 universal axes only and tell the user the target-specific layer was skipped.
+   - **Robustness fallback:** if `--profile` was passed but the profile is not found in either location, **warn but do not abort** — proceed with the 9 axes only and tell the user the target-specific layer was skipped.
 
-## Step 2 — Score each axis (1-10)
+## Step 1.5 — Detect prompt surface
+
+Some axes are *surface-conditional* — they only apply when the prompt has the surface they target. Scoring an instruction-pure agent on "are large interpolated content blocks wrapped in semantic XML tags?" produces noise, not signal. A short Anthropic-official cleanup-agent prompt would lose 3+ points on the mean for axes that don't even apply to its style.
+
+Inspect the prompt and set three booleans. Record them in the report — they drive Step 2 (scoring) and Step 3 (score model).
+
+- **`has_interpolated_blocks`** — `true` if the prompt contains content blocks pasted in literally (schemas, JSON shapes, code, templates, agent prompts, regex sets, `$ARGUMENTS` or other interpolation placeholders that hold structured payloads). `false` for prose-only instruction prompts where every line is "what to do" rather than "what to read".
+  - Rule of thumb: any block where Claude needs to distinguish "this is data/schema/template I read" from "this is instructions I follow" → `true`.
+  - Controls **axis 6 (Structure / XML)**.
+
+- **`output_is_generative_ambiguous`** — `true` if the task produces open-ended natural language where multiple valid shapes exist (a generated spec, written summary, structured doc, narrative response). `false` if the output is a strict schema (fixed JSON, deterministic command sequence, table with predetermined columns) or if the prompt is a behavior-defining agent that doesn't itself emit a single artifact.
+  - Rule of thumb: would a worked `<sample_input>`/`<ideal_output>` example actually disambiguate the task, or would it just re-state the schema? Only `true` if the example would teach *judgment or style*, not just *shape*.
+  - Controls **axis 7 (Examples)**.
+
+- **`has_numeric_parameters`** — `true` if the prompt contains weights, thresholds, max counts, percentages, or numeric defaults that influence behavior (e.g. `+3`, `≥0.5`, `max 3`, `30%`, `1500 chars`). `false` if the only numbers are ordinal step labels (`1.`, `2.`) or schema field positions.
+  - Controls **axis 9 (Parameter Tuning)**.
+
+These booleans are NOT a quality signal — a prompt with all three `false` is not a worse prompt, just a prompt of a different style.
+
+## Step 2 — Score each axis (1-10 or N/A)
 
 For each axis, inspect the prompt and produce:
 
-- A score from 1 (catastrophic) to 10 (best practice fully applied)
-- 1-3 specific findings, each with a verbatim quote from the prompt (≤2 lines per quote)
+- A score from 1 (catastrophic) to 10 (best practice fully applied), **or `N/A`** for surface-conditional axes whose surface doesn't exist
+- 1-3 specific findings, each with a verbatim quote from the prompt (≤2 lines per quote). Skip findings entirely for `N/A` axes — instead give a one-line reason for the N/A
 - A one-line summary
+
+Axes 1, 2, 3, 4, 5, 8 are **universal** — always score 1-10, never N/A. Axes 6, 7, 9 are **surface-conditional** — score N/A when the corresponding boolean from Step 1.5 is `false`.
 
 ### Axis 1 — Clarity
 Scan for: vague preambles, hedge language ("maybe", "perhaps", "could possibly", "it might"), self-narration ("I was wondering...", "I think we should..."). High score = direct task statements, no padding.
@@ -60,25 +81,39 @@ Check: is the task multi-faceted (debug, decide, root-cause, analyse multi-dim)?
 ### Axis 5 — Specificity
 Scan for: generic asks ("write a short story"), open scope ("about anything you want"), examples-of-anything. High score = concrete bounds (input class, output shape, example flavour). Low score = wishy-washy.
 
-### Axis 6 — Structure (XML Tags)
-Check: are there large content blocks (data, code, docs, examples) interpolated into the prompt? Are they wrapped in semantic XML tags (`<sales_records>`, `<my_code>`, `<docs>`) or just pasted inline? High score = every interpolated block tagged. Low score = walls of mixed content.
+### Axis 6 — Structure (XML Tags) — *surface-conditional*
+**N/A condition:** if `has_interpolated_blocks == false`, score = `N/A` with reason "no interpolated content blocks". Do not penalize a prose-only instruction prompt for not having XML tags it doesn't need.
 
-### Axis 7 — Examples
-Check: are there any input/output examples? Are they wrapped in `<sample_input>` / `<ideal_output>` tags? Is there commentary after the ideal output explaining *why* it's ideal? High score = at least one well-tagged example with commentary, covering an edge case. Low score = no examples or only inline-prose "for example, you might..." mentions.
+Otherwise: are the large content blocks (data, code, docs, examples) wrapped in semantic XML tags (`<sales_records>`, `<my_code>`, `<docs>`) or just pasted inline? High score = every interpolated block tagged. Low score = walls of mixed content.
+
+### Axis 7 — Examples — *surface-conditional*
+**N/A condition:** if `output_is_generative_ambiguous == false`, score = `N/A` with reason "output shape is deterministic / no judgment-style ambiguity for an example to disambiguate". An example that just re-shows the JSON schema adds noise; only score when an example would teach *style or judgment*.
+
+Otherwise: are there input/output examples? Are they wrapped in `<sample_input>` / `<ideal_output>` tags? Is there commentary after the ideal output explaining *why* it's ideal? High score = at least one well-tagged example with commentary, covering an edge case. Low score = no examples or only inline-prose "for example, you might..." mentions.
 
 ### Axis 8 — Robustness (edge-case handling)
 Check: does the prompt explicitly handle malformed/missing/ambiguous inputs? Are there fallbacks for empty fields, oversized payloads, contradictory signals? Is there a catch-all "if nothing matches, do <X>" rule? High score = inputs are validated up-front and every decision branch has an explicit tie-breaker. Low score = silent assumptions ("the description will be a paragraph"), no fallback for missing fields, no tie-breakers.
 
-### Axis 9 — Parameter Tuning
-Check: does the prompt have numeric parameters (weights, thresholds, max counts, defaults)? Are they justified, or are they magic numbers? High score = explicit rationale next to each parameter, OR parameters reference a calibration source. Low score = sprinkled magic numbers (`+3`, `0.5`, `max 3`) with no explanation. Note this axis isn't about whether the values are correct — that requires empirical testing — only whether they're documented well enough that a future tuner knows where to start.
+### Axis 9 — Parameter Tuning — *surface-conditional*
+**N/A condition:** if `has_numeric_parameters == false`, score = `N/A` with reason "no numeric parameters present". A prompt without weights/thresholds/caps has nothing to justify.
 
-## Step 3 — Compute overall score
+Otherwise: are the parameters justified or magic numbers? High score = explicit rationale next to each parameter, OR parameters reference a calibration source. Low score = sprinkled magic numbers (`+3`, `0.5`, `max 3`) with no explanation. This axis isn't about whether the values are correct — that requires empirical testing — only whether they're documented well enough that a future tuner knows where to start.
 
-`overall = round(mean(axis scores), 1)`
+## Step 3 — Compute scores
+
+Two scores, not one. Do **not** average them together.
+
+- **Core score** = `round(mean(axes 1, 2, 3, 4, 5, 8), 1)`. These six axes are universal — every prompt should pass them regardless of style. **This is the headline.**
+
+- **Contextual score** = `round(mean(applicable axes among 6, 7, 9), 1)`, or `N/A` if all three are N/A. Reported as secondary, never folded into Core.
+
+A prompt with **Core 9/10 and Contextual N/A** is excellent — it's a clean instruction-pure prompt with no surface for the conditional axes. A prompt with **Core 5/10 and Contextual 9/10** is broken even if its XML hygiene is perfect: the universal axes are where correctness lives.
+
+Why the split: a single mean over 9 axes punishes prompt styles that legitimately don't use 3 of them (e.g. short agent definitions, fixed-schema slash commands). The headline must reflect actual prompt quality, not stylistic fit to one prompt archetype.
 
 ## Step 4 — Generate ranked recommendations
 
-For each axis scoring **< 7**, generate one recommendation. (Rationale for the `< 7` threshold: an axis at 7+ is "good enough that a forced fix would be premature optimisation". Below 7, the gap is material enough that proposing a fix has positive expected value.)
+For each **applicable** axis scoring **< 7**, generate one recommendation. `N/A` axes generate nothing — they're not defects. (Rationale for the `< 7` threshold: an axis at 7+ is "good enough that a forced fix would be premature optimisation". Below 7, the gap is material enough that proposing a fix has positive expected value.)
 
 **Size-aware diffs.** Compute the per-hypothesis budget from the target prompt's current size (see `references/prompt-best-practices.md` § Size-aware hypothesis design):
 
@@ -86,11 +121,11 @@ For each axis scoring **< 7**, generate one recommendation. (Rationale for the `
 - **50-200 lines** → ≤ **30%** budget. Prefer size-saving patterns when they don't hurt readability.
 - **≥ 200 lines** → ≤ **10%** budget. Size-saving patterns mandatory: external `examples/` files, inline parenthetical rationale (≤1 line per magic number), terse `if-condition: action` fallbacks (not paragraphs), wrap only interpolated content blocks (3-6 wraps total, not every section).
 
-**Score-aware classification (`quick_fix` vs `ab_test`).** Use the audit's overall score to set the threshold:
+**Score-aware classification (`quick_fix` vs `ab_test`).** Use the **Core score** (not a deprecated mean over all axes) to set the threshold:
 
-- **Overall < 5** → even structural rewrites can be `quick_fix`. The prompt is so weak the upside dominates the regression risk.
-- **Overall 5-7** → standard rule. `quick_fix` = low-risk additions, `ab_test` = behaviour-changing.
-- **Overall > 7** → every non-trivial change is `ab_test`. Diminishing returns.
+- **Core < 5** → even structural rewrites can be `quick_fix`. The prompt is so weak the upside dominates the regression risk.
+- **Core 5-7** → standard rule. `quick_fix` = low-risk additions, `ab_test` = behaviour-changing.
+- **Core > 7** → every non-trivial change is `ab_test`. Diminishing returns.
 
 If a clean fix would still exceed its budget, mark it `category: ab_test` with a "split across rounds" note in the recommendation.
 
@@ -130,22 +165,33 @@ Compose a markdown report with this structure:
 
 **Source:** <absolute path>
 **Audited:** <UTC ISO timestamp>
-**Reference:** [`references/prompt-best-practices.md`](../references/prompt-best-practices.md) (7 axes)
+**Reference:** [`references/prompt-best-practices.md`](../references/prompt-best-practices.md) (9 axes — 6 universal, 3 surface-conditional)
 **Profile:** <profile name or "none">
+
+## Prompt surface
+
+- `has_interpolated_blocks`: <true|false> — <one-line reason>
+- `output_is_generative_ambiguous`: <true|false> — <one-line reason>
+- `has_numeric_parameters`: <true|false> — <one-line reason>
+
+## Scores
+
+- **Core score (axes 1-5, 8): 7.0/10** — the headline. Universal axes every prompt must pass.
+- **Contextual score (applicable axes among 6, 7, 9): 4.5/10** — secondary signal, only counts axes whose surface exists.
 
 ## Score by axis
 
-| Axis | Name | Score | One-line |
-|---|---|---|---|
-| 1 | Clarity | 7/10 | minor preamble in section X |
-| 2 | Directness | 8/10 | mostly imperative |
-| 3 | Output Guidelines | 4/10 | no explicit length/format spec |
-| 4 | Process Steps | 6/10 | steps present but mid-section |
-| 5 | Specificity | 7/10 | a few generic phrasings |
-| 6 | Structure (XML) | 2/10 | zero XML tags despite multi-section content |
-| 7 | Examples | 1/10 | zero examples |
-
-**Overall:** 5.0/10 — three axes (Output Guidelines, Structure, Examples) are the dominant weaknesses.
+| Axis | Name | Type | Score | One-line |
+|---|---|---|---|---|
+| 1 | Clarity | universal | 7/10 | minor preamble in section X |
+| 2 | Directness | universal | 8/10 | mostly imperative |
+| 3 | Output Guidelines | universal | 4/10 | no explicit length/format spec |
+| 4 | Process Steps | universal | 6/10 | steps present but mid-section |
+| 5 | Specificity | universal | 7/10 | a few generic phrasings |
+| 6 | Structure (XML) | conditional | 2/10 | zero XML tags despite multi-section content |
+| 7 | Examples | conditional | N/A | output is fixed JSON — no judgment-style ambiguity to disambiguate |
+| 8 | Robustness | universal | 6/10 | no fallback for missing field X |
+| 9 | Parameter Tuning | conditional | N/A | no numeric parameters present |
 
 ## Findings
 
@@ -219,19 +265,22 @@ Format the chat output like this (markdown rendered inline by Claude Code):
 
 # <basename of prompt>
 
-**Overall:** <overall>/10
+**Core (axes 1-5, 8):** <core>/10  ← headline
+**Contextual (applicable among 6, 7, 9):** <contextual>/10  *or*  N/A
 
-| Axis | Name | Score | One-line |
-|---|---|---|---|
-| 1 | Clarity | 7/10 | minor preamble in section "Outline" |
-| 2 | Directness | 8/10 | mostly imperative |
-| 3 | Output Guidelines | ... | ... |
-| 4 | Process Steps | ... | ... |
-| 5 | Specificity | ... | ... |
-| 6 | Structure (XML) | ... | ... |
-| 7 | Examples | ... | ... |
-| 8 | Robustness | ... | ... |
-| 9 | Parameter Tuning | ... | ... |
+> Surface: interpolated_blocks=<bool>, generative_ambiguous=<bool>, numeric_parameters=<bool>
+
+| Axis | Name | Type | Score | One-line |
+|---|---|---|---|---|
+| 1 | Clarity | universal | 7/10 | minor preamble in section "Outline" |
+| 2 | Directness | universal | 8/10 | mostly imperative |
+| 3 | Output Guidelines | universal | ... | ... |
+| 4 | Process Steps | universal | ... | ... |
+| 5 | Specificity | universal | ... | ... |
+| 6 | Structure (XML) | conditional | ... *or* N/A | reason if N/A |
+| 7 | Examples | conditional | ... *or* N/A | reason if N/A |
+| 8 | Robustness | universal | ... | ... |
+| 9 | Parameter Tuning | conditional | ... *or* N/A | reason if N/A |
 
 ## Quick fixes (apply directly)
 
@@ -262,7 +311,7 @@ Format the chat output like this (markdown rendered inline by Claude Code):
 ### Axis 6 — Structure (3/10)
 > "<quote showing untagged content block>"
 
-(only show axes scoring < 7 — the others are already fine)
+(only show **applicable** axes scoring < 7 — universal axes ≥7 and N/A axes are not defects, don't enumerate them)
 
 ## Where to go next
 
@@ -283,3 +332,5 @@ Goal: every recommendation has its title, scope, and category visible in the cha
 - Run is single-pass and deterministic: same prompt + same model = approximately same audit.
 - If the user re-audits a prompt after applying recommendations, the score for the addressed axes should clearly improve. This is a useful sanity check.
 - For multi-file prompts (e.g. an agent that spans several markdown files), audit each file separately and aggregate manually.
+- An `N/A` on a surface-conditional axis is **not** a defect — it means the prompt is of a style that doesn't have that surface. Don't propose recommendations to "fix" an N/A axis.
+- The Core score is the only number worth comparing across prompts of different styles. The Contextual score is only meaningful between prompts whose surface populates the same conditional axes.

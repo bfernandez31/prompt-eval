@@ -222,6 +222,43 @@ Pair this axis with **bracket judging** to learn which direction the parameter w
 
 ---
 
+## Applying the axes — universal vs surface-conditional
+
+Not all 9 axes apply to every prompt. Treating them as uniformly applicable produces noise: an instruction-pure agent prompt loses 3+ points on a naive mean for surfaces it doesn't have. The audit and hypothesis-generation skills must distinguish:
+
+### Universal axes (always applicable)
+
+**Axes 1, 2, 3, 4, 5, 8** — Clarity, Directness, Output Guidelines, Process Steps, Specificity, Robustness.
+
+These are properties any prompt can have or fail to have, regardless of style. A 30-line agent definition and a 250-line orchestration skill both need clear language, imperative directness, output bounds, scaffolding for multi-step tasks, concrete asks, and edge-case fallbacks. Score 1-10. Never N/A.
+
+### Surface-conditional axes (applicable only when the prompt has the surface)
+
+**Axis 6 — Structure (XML).** Applies only when the prompt **interpolates content blocks** Claude must distinguish from instructions: schemas, JSON shapes, code, templates, agent sub-prompts, regex sets, `$ARGUMENTS` placeholders holding structured payloads. A prose-only instruction prompt has nothing for XML tags to delimit; scoring it on XML hygiene is a category error. → `N/A` when no interpolated blocks.
+
+**Axis 7 — Examples.** Applies only when the task output is **generative-ambiguous** — open-ended natural language where multiple valid shapes exist and a worked `<sample_input>`/`<ideal_output>` example would teach *judgment or style*, not just *shape*. A prompt that emits a fixed JSON schema gains nothing from an example that re-states the schema. → `N/A` when the output is deterministic / strictly-shaped, or when the prompt is a behavior-defining agent rather than an artifact-emitting one.
+
+**Axis 9 — Parameter Tuning.** Applies only when the prompt contains **numeric parameters that influence behavior** — weights, thresholds, max counts, percentages, defaults. A prompt without magic numbers has nothing to justify. → `N/A` when no numeric parameters exist (ordinal step labels and schema field positions don't count).
+
+### Why the split matters
+
+A naive mean over 9 axes punishes legitimate prompt styles. A short cleanup-agent prompt with no interpolation, no generative ambiguity, and no parameters is *correctly* `N/A` on axes 6/7/9 — that's not a defect, it's a stylistic fit. The audit reports two scores:
+
+- **Core** = mean of axes 1, 2, 3, 4, 5, 8 — the headline. Universal correctness.
+- **Contextual** = mean of *applicable* axes among 6, 7, 9 — secondary. Stylistic fit *for prompts whose surface populates these axes*.
+
+Never average Core and Contextual together. They measure different things.
+
+### For hypothesis generation (`prompt-eval`)
+
+When generating hypotheses for a round, only propose changes targeting axes whose surface exists. A hypothesis "wrap section X in `<sales_records>` tags" is wasted on a prompt that has no `sales_records`-shaped block. The "Pick axes by inspection" rule (see Generation Heuristics below) already enforces this — the surface check makes it explicit.
+
+### For judging (`prompt-eval`, `prompt-eval-init`)
+
+The rubric judges *outputs*, not the prompt itself. A criterion like "Examples: wrapped in `<sample_input>`/`<ideal_output>`" applies to the *output* if the output is itself an example-bearing artifact. For most outputs (a generated summary, a JSON payload, a refactored code block) most of these criteria self-resolve to applicable or not. The judge LLM applies them intelligently in context.
+
+---
+
 ## Beyond axes — domain-specific tweaks
 
 Some valid hypothesis types are not universally applicable. Use them when the target prompt happens to expose the surface:
@@ -232,7 +269,7 @@ Some valid hypothesis types are not universally applicable. Use them when the ta
 - **Section reordering** — moving a high-leverage section (output spec, examples) earlier in the prompt.
 - **Conflict resolution rules** — explicit tie-breakers when multiple branches of the prompt could fire.
 
-Don't force these into hypotheses if the target doesn't have the surface. But if it does, they're as valid as the 9 universal axes.
+Don't force these into hypotheses if the target doesn't have the surface. But if it does, they're as valid as the 9 best-practice axes.
 
 ---
 
