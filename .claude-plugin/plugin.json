@@ -1,6 +1,6 @@
 {
   "name": "prompt-eval",
-  "version": "0.0.20",
+  "version": "0.0.21",
   "description": "Self-improvement framework for Claude Code prompts via 3-level evaluation cascade with Agent Teams.",
   "author": {
     "name": "bfernandez31"

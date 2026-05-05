@@ -71,7 +71,7 @@ Patterns to collect (deduplicated, resolved to absolute paths, all subject to th
 | `constitution.md`, paths under `memory/`, `vision/`, `policies/`, `docs/` | Skip | Project policy, not prompt-shaping |
 | `.sh`, `.py`, `.js`, `.ts`, `.go`, `.rb` and other code files | Skip | Implementation; the prompt's *use* of them is what matters, not their internals |
 | `.png`, `.jpg`, `.pdf`, `.zip`, `.gz`, etc. | Skip | Binary / opaque |
-| Other text files (`.md`, `.yaml`, `.yml`, `.json`, `.toml`, `.txt`, `.html`) not matching any row above | Conditional | Default Skip. Load only if the surrounding prose (≈3 lines around the citation — enough to catch the framing sentence without dragging in unrelated prose) contains "template", "format", "structure", "example", "shape", or "schema". Otherwise note as ambiguous. |
+| Other text files (`.md`, `.yaml`, `.yml`, `.json`, `.toml`, `.txt`, `.html`) not matching any row above | Conditional | Read the citing sentence(s) and judge: **Load** if the prose treats the file as authoritative for shaping the prompt's output, examples, behavior, or evaluation framework (template, worked example, reference, ground-truth doc, rubric, schema spec, calibration source, etc. — phrased however). **Skip** if it's project policy, runtime data, or auxiliary documentation that doesn't change what the prompt does. When genuinely ambiguous, skip and note the file as `ambiguous — model judgment` in the Skipped list. This is a qualitative call by the LLM running the procedure, not a keyword scan. |
 
 ### 3. Apply cap and load
 
@@ -123,7 +123,7 @@ These booleans/types are NOT a quality signal — a prompt with `interpolated_bl
 For each axis, inspect the prompt and produce:
 
 - A score from 1 (catastrophic) to 10 (best practice fully applied), **or `N/A`** for surface-conditional axes whose surface doesn't exist
-- 1-3 specific findings, each with a verbatim quote from the prompt (≤2 lines per quote). Skip findings entirely for `N/A` axes — instead give a one-line reason for the N/A
+- 1-3 specific findings (1 = thin evidence, more than 3 = noise that dilutes the strongest defect), each with a verbatim quote from the prompt (≤2 lines per quote — long quotes lose focus on the specific defect; 2 lines comfortably covers a sentence boundary). Skip findings entirely for `N/A` axes — instead give a one-line reason for the N/A
 - A one-line summary
 
 Axes 1, 2, 3, 4, 5, 8 are **universal** — always score 1-10, never N/A. Axes 6, 7, 9 are **surface-conditional** — score N/A when the corresponding boolean from Step 3 is `false`.
@@ -198,6 +198,7 @@ For each **applicable** axis scoring **< 7**, generate one recommendation. `N/A`
 
 If a clean fix would still exceed its budget, mark it `category: ab_test` with a "split across rounds" note in the recommendation.
 
+<recommendation_template>
 ```
 ### Recommendation N: [Axis K: <name>] <short title>
 
@@ -216,6 +217,7 @@ If a clean fix would still exceed its budget, mark it `category: ab_test` with a
 - quick_fix → low-risk, no plausible regression, apply directly
 - ab_test  → changes the example space or behaviour materially; validate empirically
 ```
+</recommendation_template>
 
 Categorisation guideline:
 - **Quick fixes**: adding XML tags around existing inline content, fixing typos, cleaning up obvious hedge language, reformatting an existing list, adding a length cap that doesn't change behaviour.
@@ -229,6 +231,7 @@ Sort recommendations by **expected impact** descending, then by axis order.
 
 Compose a markdown report with this structure:
 
+<saved_report_template>
 ```markdown
 # Audit: <basename of prompt path>
 
@@ -313,6 +316,7 @@ This audit is the cheap front-half of the prompt-eval pipeline:
 
 Run audit FIRST so the empirical budget is spent on the changes that actually need testing.
 ```
+</saved_report_template>
 
 ## Step 8 — Save the report
 
@@ -335,6 +339,7 @@ Print the **entire audit summary to the chat**, not just the top recommendation.
 
 Format the chat output like this (markdown rendered inline by Claude Code):
 
+<chat_output_template>
 ```
 ✓ Audit complete: <report_path>
 
@@ -399,6 +404,7 @@ Format the chat output like this (markdown rendered inline by Claude Code):
 
 Full report with all diffs: <report_path>
 ```
+</chat_output_template>
 
 Goal: every recommendation has its title, scope, and category visible in the chat. Diffs themselves stay in the saved report (they can be 10-50 lines each — too much for chat). The user reads the chat, decides what to apply, and only opens the report when they need a specific diff.
 
