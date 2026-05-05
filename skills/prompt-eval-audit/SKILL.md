@@ -34,7 +34,7 @@ plugin_root="$(cd "$(dirname "$(realpath ./skills/prompt-eval-audit/SKILL.md)")/
    - **Robustness fallback:** if the path doesn't exist, abort with: `"audit target not found: <path>. Pass an absolute path to a markdown file."`
    - If the file is empty (`0` bytes) or contains no markdown headings: abort with `"audit target appears empty or non-markdown — nothing to score."`
 2. Read `<plugin_root>/references/prompt-best-practices.md` to ground the analysis. The 9 axes + heuristics defined there are your evaluation framework. Pay particular attention to the **"Applying the axes — universal vs surface-conditional"** section: 6 axes are universal, 3 are surface-conditional, and surface-conditional axes get scored `N/A` when their surface doesn't exist.
-3. If `--profile <name>` was passed: resolve the profile in priority order — first `$HOME/.prompt-eval/profiles/<name>.yml`, then `$plugin_root/profiles/<name>.yml` (the latter holds built-in profiles like `ai-board.specify`). Load it and extract `eval.level3_quality.rubric`. Pull out target-specific bullet criteria (the lines under `# Target-specific (...)` if structured that way) for use in step 4.
+3. If `--profile <name>` was passed: resolve the profile in priority order — first `$HOME/.prompt-eval/profiles/<name>.yml`, then `$plugin_root/profiles/<name>.yml` (the latter holds built-in profiles like `ai-board.specify`). Load it and extract `eval.level3_quality.rubric`. Pull out target-specific bullet criteria (the lines under `# Target-specific (...)` if structured that way) for use in Step 6.
    - **Robustness fallback:** if `--profile` was passed but the profile is not found in either location, **warn but do not abort** — proceed with the 9 axes only and tell the user the target-specific layer was skipped.
 
 ## Step 2 — Resolve referenced files
@@ -54,7 +54,7 @@ Patterns to collect (deduplicated, resolved to absolute paths, all subject to th
 - Quoted relative paths in prose: `"templates/spec-template.md"`, `'examples/foo.md'`
 - **Bare-prose paths in running text** (no quotes, no backticks): tokens that satisfy the gate appearing in normal sentences, e.g. `Load templates/spec-template.md to understand required sections`. Real prompts cite this way often — without this pattern most template references would be missed.
 
-**Path resolution:** absolute → as-is; relative → relative to the target prompt's directory (NOT cwd); `${CLAUDE_PLUGIN_ROOT:-...}` → relative to the nearest ancestor directory containing `.claude-plugin/`. After resolution, candidates whose resolved path doesn't exist on disk go into the **missing references** list (Axis 8 finding — see step 4 below).
+**Path resolution:** absolute → as-is; relative → relative to the target prompt's directory (NOT cwd); `${CLAUDE_PLUGIN_ROOT:-...}` → relative to the nearest ancestor directory containing `.claude-plugin/`. After resolution, candidates whose resolved path doesn't exist on disk go into the **missing references** list (Axis 8 finding — see sub-step 4 below).
 
 **Refs are not followed transitively** — only the target prompt's direct citations are loaded (depth=1). If a loaded template itself cites another file, that second-order ref is out of scope.
 
@@ -71,7 +71,7 @@ Patterns to collect (deduplicated, resolved to absolute paths, all subject to th
 | `constitution.md`, paths under `memory/`, `vision/`, `policies/`, `docs/` | Skip | Project policy, not prompt-shaping |
 | `.sh`, `.py`, `.js`, `.ts`, `.go`, `.rb` and other code files | Skip | Implementation; the prompt's *use* of them is what matters, not their internals |
 | `.png`, `.jpg`, `.pdf`, `.zip`, `.gz`, etc. | Skip | Binary / opaque |
-| Other text files (`.md`, `.yaml`, `.yml`, `.json`, `.toml`, `.txt`, `.html`) not matching any row above | Conditional | Read the citing sentence(s) and judge: **Load** if the prose treats the file as authoritative for shaping the prompt's output, examples, behavior, or evaluation framework (template, worked example, reference, ground-truth doc, rubric, schema spec, calibration source, etc. — phrased however). **Skip** if it's project policy, runtime data, or auxiliary documentation that doesn't change what the prompt does. When genuinely ambiguous, skip and note the file as `ambiguous — model judgment` in the Skipped list. This is a qualitative call by the LLM running the procedure, not a keyword scan. |
+| Other text files (`.md`, `.yaml`, `.yml`, `.json`, `.toml`, `.txt`, `.html`) not matching any row above | Conditional | Read the citing sentence(s) and judge: **Load** if the prose treats the file as authoritative for shaping the prompt's output, examples, behavior, or evaluation framework (template, worked example, reference, ground-truth doc, rubric, schema spec, calibration source, etc. — phrased however). **Skip** if it's project policy, runtime data, or auxiliary documentation that doesn't change what the prompt does. When genuinely ambiguous, skip and note the file as `ambiguous — model judgment` in the Skipped list. |
 
 ### 3. Apply cap and load
 
@@ -190,7 +190,7 @@ For each **applicable** axis scoring **< 7**, generate one recommendation. `N/A`
 - **50-200 lines** → ≤ **30%** budget. Prefer size-saving patterns when they don't hurt readability.
 - **≥ 200 lines** → ≤ **10%** budget. Size-saving patterns mandatory: external `examples/` files, inline parenthetical rationale (≤1 line per magic number), terse `if-condition: action` fallbacks (not paragraphs), wrap only interpolated content blocks (3-6 wraps total, not every section).
 
-**Score-aware classification (`quick_fix` vs `ab_test`).** Use the **Core score** (not a deprecated mean over all axes) to set the threshold:
+**Score-aware classification (`quick_fix` vs `ab_test`).** Use the **Core score** to set the threshold:
 
 - **Core < 5** → even structural rewrites can be `quick_fix`. The prompt is so weak the upside dominates the regression risk.
 - **Core 5-7** → standard rule. `quick_fix` = low-risk additions, `ab_test` = behaviour-changing.
